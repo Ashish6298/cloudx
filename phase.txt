@@ -1,0 +1,3341 @@
+CLOUDX — PHASE ROADMAP
+======================
+
+Project: CloudX
+Type: Local-First Private Cloud Runtime / Developer Infrastructure Platform
+Language: Go
+Primary Runtime: Native Process Runtime
+State Store: SQLite
+RPC: gRPC + Protobuf
+CLI: Cobra
+Configuration: YAML
+Observability: OpenTelemetry-compatible architecture
+Initial Networking: TCP/IP + service registry/discovery
+Initial Storage: Local persistent volumes
+Container Runtime: Future extension, NOT required for v1.0.0
+
+======================================================================
+CORE PRODUCT DEFINITION
+======================================================================
+
+CloudX is a local-first private cloud runtime that allows developers to
+deploy, schedule, execute, monitor, recover, scale, and manage services
+and jobs across one or more machines.
+
+CloudX owns the orchestration layer.
+
+CloudX is NOT:
+
+- Docker with a different CLI.
+- A Kubernetes replacement.
+- A cloud provider emulator.
+- A full container runtime.
+- A distributed database.
+- An S3 implementation.
+- A full overlay-network implementation.
+- A web dashboard-first product.
+
+CloudX should demonstrate genuine systems engineering through:
+
+- Desired state management
+- Actual state tracking
+- Reconciliation
+- Scheduling
+- Worker management
+- Process lifecycle management
+- Service discovery
+- Health monitoring
+- Failure detection
+- Automatic recovery
+- Deployment versions
+- Rollbacks
+- Jobs
+- Resource allocation
+- Persistent volumes
+- Cluster state
+- Events
+- Logs
+- Metrics
+- Multi-node orchestration
+- CLI-driven infrastructure management
+
+======================================================================
+GLOBAL ARCHITECTURAL PRINCIPLE
+======================================================================
+
+CloudX follows:
+
+DESIRED STATE
+      ↓
+CONTROL PLANE
+      ↓
+SCHEDULER
+      ↓
+WORKER
+      ↓
+RUNTIME
+      ↓
+ACTUAL STATE
+      ↓
+REPORT BACK
+      ↓
+RECONCILIATION
+      ↓
+DESIRED STATE
+
+The control plane determines what SHOULD exist.
+
+Workers determine what ACTUALLY exists on machines.
+
+The reconciliation system continuously compares desired state with
+actual state and attempts to converge the cluster toward the desired
+state.
+
+This principle must remain central throughout the project.
+
+
+======================================================================
+MILESTONE 1 — PROJECT FOUNDATION
+======================================================================
+
+Goal:
+
+Establish the CloudX repository, Go module, package boundaries,
+configuration system, logging, error model, identifiers, and testing
+foundation.
+
+No distributed functionality should be implemented yet.
+
+----------------------------------------------------------------------
+PHASE 1 — Repository and Go Project Initialization
+----------------------------------------------------------------------
+
+Objective:
+
+Create the initial CloudX repository and establish a professional
+Go project structure.
+
+Implementation:
+
+Create the Go module using a stable module path.
+
+Establish a structure similar to:
+
+cloudx/
+├── cmd/
+│   ├── cloudx/
+│   └── cloudx-worker/
+├── internal/
+│   ├── api/
+│   ├── config/
+│   ├── controlplane/
+│   ├── events/
+│   ├── health/
+│   ├── registry/
+│   ├── runtime/
+│   ├── scheduler/
+│   ├── state/
+│   ├── worker/
+│   └── common/
+├── proto/
+├── configs/
+├── scripts/
+├── test/
+├── docs/
+├── go.mod
+├── go.sum
+├── Makefile
+├── README.md
+└── LICENSE
+
+Create separate executable entry points for:
+
+cloudx
+cloudx-worker
+
+Establish package naming conventions.
+
+Add basic version information:
+
+cloudx version
+
+The version should initially be:
+
+0.1.0-dev
+
+Add build metadata support so release builds can inject:
+
+- Version
+- Commit
+- Build time
+
+Tests:
+
+- Go module builds.
+- Both binaries compile.
+- Version command works.
+- Package structure passes go test ./....
+
+Acceptance:
+
+A clean machine should be able to clone the repository and run:
+
+go test ./...
+go build ./...
+
+without errors.
+
+Do NOT implement:
+
+- Scheduler
+- Worker communication
+- SQLite state
+- Deployment
+- Networking
+
+
+----------------------------------------------------------------------
+PHASE 2 — Configuration System
+----------------------------------------------------------------------
+
+Objective:
+
+Create a centralized configuration system.
+
+CloudX configuration must be explicit and deterministic.
+
+Support configuration sources in this order:
+
+1. Built-in defaults
+2. Configuration file
+3. Environment variables
+4. CLI flags
+
+Define configuration categories:
+
+CloudXConfig
+├── NodeConfig
+├── ControlPlaneConfig
+├── WorkerConfig
+├── RuntimeConfig
+├── StorageConfig
+├── NetworkConfig
+├── HealthConfig
+└── LoggingConfig
+
+Example configuration:
+
+node:
+  id: local-node
+  name: local
+
+control_plane:
+  address: 127.0.0.1:7000
+
+worker:
+  address: 127.0.0.1:7001
+
+runtime:
+  type: native
+
+storage:
+  path: ~/.cloudx
+
+health:
+  heartbeat_interval: 5s
+
+logging:
+  level: info
+
+Implement:
+
+- Configuration loading
+- Default values
+- Validation
+- Environment overrides
+- Config file discovery
+- Explicit config path
+- CLI override support
+
+Invalid configurations must return structured errors.
+
+Tests:
+
+- Default configuration.
+- Valid YAML.
+- Invalid YAML.
+- Missing fields.
+- Invalid ports.
+- Invalid durations.
+- Environment override.
+- CLI override precedence.
+
+Acceptance:
+
+CloudX can reliably load and validate configuration.
+
+Do NOT implement networking yet.
+
+
+----------------------------------------------------------------------
+PHASE 3 — Logging and Error Infrastructure
+----------------------------------------------------------------------
+
+Objective:
+
+Create production-quality logging and error handling.
+
+Implement structured logging.
+
+Every major subsystem should be able to attach fields such as:
+
+- node_id
+- service_id
+- deployment_id
+- task_id
+- worker_id
+- job_id
+- event_id
+
+Implement log levels:
+
+DEBUG
+INFO
+WARN
+ERROR
+
+Create typed/internal errors for:
+
+- Invalid configuration
+- Resource unavailable
+- Not found
+- Conflict
+- Invalid state
+- Runtime failure
+- RPC failure
+- Storage failure
+- Scheduling failure
+
+Errors should preserve root causes.
+
+Tests:
+
+- Structured fields.
+- Error wrapping.
+- Error classification.
+- Serialization where needed.
+
+Acceptance:
+
+All future components can use a shared logging/error foundation.
+
+
+----------------------------------------------------------------------
+PHASE 4 — Identity and Identifier System
+----------------------------------------------------------------------
+
+Objective:
+
+Create stable IDs for CloudX entities.
+
+Entities:
+
+Node
+Worker
+Service
+Deployment
+Task
+Job
+Volume
+Network
+Event
+
+Each entity must have:
+
+- Unique ID
+- Human-readable name where applicable
+- Creation timestamp
+
+IDs must not depend on database auto-increment values.
+
+Implement an ID abstraction.
+
+Requirements:
+
+- Collision resistant.
+- Stable.
+- Serializable.
+- Easy to inspect in logs.
+
+Tests:
+
+- ID generation.
+- Uniqueness.
+- Serialization.
+- Parsing/validation.
+
+Acceptance:
+
+All future CloudX entities can use the same identity system.
+
+
+======================================================================
+MILESTONE 2 — STATE ENGINE
+======================================================================
+
+Goal:
+
+Build CloudX's persistent state layer.
+
+This is one of the most important architectural milestones.
+
+CloudX should never scatter database queries throughout business logic.
+
+All state access must go through repositories/services.
+
+----------------------------------------------------------------------
+PHASE 5 — SQLite State Store
+----------------------------------------------------------------------
+
+Objective:
+
+Create the SQLite persistence layer.
+
+Database location:
+
+~/.cloudx/cloudx.db
+
+Create migrations.
+
+Initial tables:
+
+nodes
+workers
+services
+deployments
+tasks
+jobs
+volumes
+networks
+events
+
+Add metadata tables if required.
+
+Implement:
+
+StateStore interface
+
+Repositories:
+
+NodeRepository
+WorkerRepository
+ServiceRepository
+DeploymentRepository
+TaskRepository
+JobRepository
+VolumeRepository
+NetworkRepository
+EventRepository
+
+Transactions must be supported.
+
+Tests:
+
+- Database creation.
+- Migration.
+- Insert.
+- Read.
+- Update.
+- Delete.
+- Transaction rollback.
+- Concurrent access where applicable.
+
+Acceptance:
+
+CloudX can persist and retrieve all core entity types.
+
+Do NOT expose SQLite directly to higher-level orchestration logic.
+
+
+----------------------------------------------------------------------
+PHASE 6 — Desired State Model
+----------------------------------------------------------------------
+
+Objective:
+
+Introduce the concept of desired state.
+
+Define desired-state models for services.
+
+Example:
+
+ServiceDesiredState:
+
+name
+version
+replicas
+runtime
+command
+environment
+ports
+resources
+restart_policy
+health_check
+volumes
+
+A service's desired state must be persisted.
+
+Define:
+
+DesiredStateStore
+
+Implement CRUD operations.
+
+Tests:
+
+- Create desired service.
+- Update desired replicas.
+- Change version.
+- Persist/reload state.
+- Invalid desired state.
+
+Acceptance:
+
+CloudX can represent what a service SHOULD look like.
+
+
+----------------------------------------------------------------------
+PHASE 7 — Actual State Model
+----------------------------------------------------------------------
+
+Objective:
+
+Represent what is ACTUALLY running.
+
+Actual task state:
+
+PENDING
+ASSIGNED
+STARTING
+RUNNING
+HEALTHY
+UNHEALTHY
+STOPPING
+STOPPED
+FAILED
+LOST
+
+Actual service state should be derived from its tasks.
+
+Track:
+
+- Worker
+- PID
+- Start time
+- Exit code
+- Runtime state
+- Health state
+- Last heartbeat
+- Resource information
+
+Acceptance:
+
+CloudX can distinguish:
+
+DESIRED STATE != ACTUAL STATE
+
+This difference becomes the input for reconciliation.
+
+
+----------------------------------------------------------------------
+PHASE 8 — State Transitions
+----------------------------------------------------------------------
+
+Objective:
+
+Create explicit state transition rules.
+
+Do not allow arbitrary state mutation.
+
+Example:
+
+PENDING → ASSIGNED
+ASSIGNED → STARTING
+STARTING → RUNNING
+RUNNING → HEALTHY
+RUNNING → UNHEALTHY
+RUNNING → STOPPING
+STOPPING → STOPPED
+RUNNING → FAILED
+ASSIGNED → LOST
+
+Invalid transitions must be rejected.
+
+Implement a transition validator.
+
+Tests should cover:
+
+- Valid transitions.
+- Invalid transitions.
+- Concurrent transition attempts.
+- Terminal states.
+
+Acceptance:
+
+State machines are deterministic and testable.
+
+
+======================================================================
+MILESTONE 3 — CONTROL PLANE
+======================================================================
+
+Goal:
+
+Build the CloudX control plane.
+
+The control plane becomes responsible for deciding what should happen.
+
+----------------------------------------------------------------------
+PHASE 9 — Control Plane Core
+----------------------------------------------------------------------
+
+Objective:
+
+Create the control-plane runtime.
+
+Components:
+
+ControlPlane
+├── State Manager
+├── Registry
+├── Scheduler
+├── Deployment Manager
+├── Health Manager
+├── Reconciler
+└── Event Manager
+
+At this stage some components may be placeholders.
+
+Implement:
+
+- Startup
+- Shutdown
+- Context cancellation
+- Component lifecycle
+- Dependency injection
+
+Control plane must start cleanly and shut down gracefully.
+
+Tests:
+
+- Startup.
+- Shutdown.
+- Failure during startup.
+- Context cancellation.
+
+Acceptance:
+
+CloudX has a functioning control-plane process.
+
+
+----------------------------------------------------------------------
+PHASE 10 — Protobuf Definitions
+----------------------------------------------------------------------
+
+Objective:
+
+Define CloudX's internal RPC contract.
+
+Create protobuf definitions for:
+
+Node
+Worker
+Service
+Deployment
+Task
+Job
+Volume
+Network
+Event
+Health
+
+RPC categories:
+
+WorkerRegistration
+Heartbeat
+TaskAssignment
+TaskStatus
+HealthReport
+LogStreaming
+EventReporting
+
+Keep protobuf contracts versionable.
+
+Do NOT put business logic into protobuf-generated code.
+
+Acceptance:
+
+Protobuf generation is deterministic and reproducible.
+
+
+----------------------------------------------------------------------
+PHASE 11 — gRPC Control Plane API
+----------------------------------------------------------------------
+
+Objective:
+
+Implement the first control-plane gRPC server.
+
+Initial endpoints:
+
+RegisterWorker
+Heartbeat
+GetWorker
+ListWorkers
+ReportTaskStatus
+ReportHealth
+
+Implement:
+
+- Server startup.
+- Graceful shutdown.
+- Request validation.
+- Error mapping.
+- Request IDs.
+- Logging.
+
+Tests:
+
+- Successful requests.
+- Invalid requests.
+- Unknown worker.
+- Duplicate registration.
+- Server shutdown.
+
+Acceptance:
+
+A worker can communicate with the control plane through gRPC.
+
+
+======================================================================
+MILESTONE 4 — WORKER RUNTIME
+======================================================================
+
+Goal:
+
+Build the machine-level execution engine.
+
+This is where CloudX starts controlling real workloads.
+
+----------------------------------------------------------------------
+PHASE 12 — Worker Daemon
+----------------------------------------------------------------------
+
+Objective:
+
+Create cloudx-worker.
+
+Worker responsibilities:
+
+- Start.
+- Register.
+- Heartbeat.
+- Receive tasks.
+- Execute tasks.
+- Report state.
+- Shutdown safely.
+
+Worker identity must remain stable across restarts.
+
+Worker lifecycle:
+
+STARTING
+REGISTERING
+READY
+DEGRADED
+STOPPING
+STOPPED
+
+Tests:
+
+- Worker startup.
+- Registration.
+- Shutdown.
+- Configuration errors.
+- Control-plane unavailable.
+
+Acceptance:
+
+A worker can independently run as a long-lived daemon.
+
+
+----------------------------------------------------------------------
+PHASE 13 — Runtime Interface
+----------------------------------------------------------------------
+
+Objective:
+
+Create a runtime abstraction.
+
+Interface concept:
+
+Runtime
+├── Start
+├── Stop
+├── Restart
+├── Inspect
+├── Logs
+└── Signal
+
+Runtime implementation:
+
+NativeRuntime
+
+Future:
+
+DockerRuntime
+
+The control plane must never depend directly on os/exec.
+
+Acceptance:
+
+CloudX orchestration is runtime-independent.
+
+
+----------------------------------------------------------------------
+PHASE 14 — Native Process Runtime
+----------------------------------------------------------------------
+
+Objective:
+
+Implement native process execution.
+
+Use Go process APIs.
+
+The runtime must support:
+
+- Command
+- Arguments
+- Environment
+- Working directory
+- PID
+- stdout
+- stderr
+- Exit code
+- Start time
+- Stop signal
+- Kill
+- Restart
+
+Capture process output without blocking.
+
+Prevent zombie processes.
+
+Tests:
+
+- Start process.
+- Stop process.
+- Kill process.
+- Process exits naturally.
+- Non-zero exit.
+- Environment injection.
+- Working directory.
+- stdout/stderr capture.
+
+Acceptance:
+
+CloudX can reliably control a native process.
+
+
+----------------------------------------------------------------------
+PHASE 15 — Task Manager
+----------------------------------------------------------------------
+
+Objective:
+
+Create the worker-side task manager.
+
+Responsibilities:
+
+- Accept task assignment.
+- Validate task.
+- Start runtime.
+- Track PID.
+- Monitor process.
+- Report state.
+- Handle completion.
+- Handle crash.
+
+Task manager must prevent duplicate execution of the same task.
+
+Acceptance:
+
+A CloudX task can move from:
+
+PENDING
+→ ASSIGNED
+→ STARTING
+→ RUNNING
+→ STOPPED/FAILED
+
+
+----------------------------------------------------------------------
+PHASE 16 — Resource Monitor
+----------------------------------------------------------------------
+
+Objective:
+
+Monitor worker resources.
+
+Track:
+
+- CPU usage
+- Memory usage
+- Process count
+- Available memory
+- System load where supported
+
+Create a platform abstraction.
+
+Do not make Linux-only assumptions.
+
+Resource information should be periodically reported to control plane.
+
+Tests:
+
+- Resource collection.
+- Unsupported metrics.
+- Sampling failure.
+- Serialization.
+
+Acceptance:
+
+Control plane knows approximate worker resource availability.
+
+
+======================================================================
+MILESTONE 5 — WORKER REGISTRATION AND CLUSTER
+======================================================================
+
+Goal:
+
+Move from one process to an actual CloudX cluster model.
+
+----------------------------------------------------------------------
+PHASE 17 — Worker Registration
+----------------------------------------------------------------------
+
+Objective:
+
+Implement worker registration lifecycle.
+
+Worker sends:
+
+- Worker ID
+- Hostname
+- Address
+- Runtime capabilities
+- CPU capacity
+- Memory capacity
+- Version
+
+Control plane returns:
+
+- Registration success
+- Cluster identity
+- Worker configuration
+- Heartbeat requirements
+
+Handle duplicate worker IDs safely.
+
+Acceptance:
+
+Workers appear in persistent cluster state.
+
+
+----------------------------------------------------------------------
+PHASE 18 — Heartbeat and Failure Detection
+----------------------------------------------------------------------
+
+Objective:
+
+Implement worker heartbeat.
+
+Worker periodically sends heartbeat.
+
+Control plane tracks:
+
+last_seen
+
+States:
+
+READY
+SUSPECTED
+UNHEALTHY
+LOST
+
+Use configurable timeout.
+
+Do not immediately declare a node dead after one missed heartbeat.
+
+Tests:
+
+- Regular heartbeat.
+- Temporary heartbeat delay.
+- Multiple missed heartbeats.
+- Recovery.
+- Worker disappearance.
+
+Acceptance:
+
+CloudX can detect worker failures.
+
+
+----------------------------------------------------------------------
+PHASE 19 — Cluster Commands
+----------------------------------------------------------------------
+
+Objective:
+
+Add CLI cluster management.
+
+Commands:
+
+cloudx cluster init
+cloudx cluster status
+cloudx cluster nodes
+cloudx worker start
+cloudx worker join
+cloudx worker status
+
+Output should be human-readable.
+
+Example:
+
+NODE       STATUS     CPU     MEMORY
+local      READY      22%     3.2GB
+worker-2   READY      41%     5.8GB
+
+Acceptance:
+
+Users can inspect cluster state from CLI.
+
+
+======================================================================
+MILESTONE 6 — SCHEDULER
+======================================================================
+
+Goal:
+
+Create CloudX's orchestration intelligence.
+
+----------------------------------------------------------------------
+PHASE 20 — Scheduling Model
+----------------------------------------------------------------------
+
+Objective:
+
+Define scheduling requirements.
+
+Task requirements:
+
+- CPU
+- Memory
+- Required runtime
+- Node constraints
+- Affinity
+- Priority
+
+Initially support:
+
+CPU
+Memory
+
+Represent available and requested resources.
+
+Acceptance:
+
+Scheduler can determine whether a worker can run a task.
+
+
+----------------------------------------------------------------------
+PHASE 21 — Basic Scheduler
+----------------------------------------------------------------------
+
+Objective:
+
+Implement deterministic scheduling.
+
+Initial algorithm:
+
+1. Filter unavailable workers.
+2. Filter insufficient resources.
+3. Filter incompatible runtime.
+4. Calculate score.
+5. Select highest-scoring worker.
+6. Break ties deterministically.
+
+Score can initially consider:
+
+- Available CPU
+- Available memory
+- Resource pressure
+- Existing workload count
+
+Do not introduce complex ML scheduling.
+
+Tests:
+
+- No workers.
+- No capacity.
+- One worker.
+- Multiple workers.
+- Deterministic selection.
+- Worker failure.
+
+Acceptance:
+
+Given the same cluster state, scheduler produces the same decision.
+
+
+----------------------------------------------------------------------
+PHASE 22 — Task Assignment
+----------------------------------------------------------------------
+
+Objective:
+
+Connect scheduler to workers.
+
+Flow:
+
+Desired service
+      ↓
+Reconciler
+      ↓
+Scheduler
+      ↓
+Task assignment
+      ↓
+Worker
+      ↓
+Runtime
+
+Assignment must be persisted before transmission.
+
+Handle:
+
+- Worker unavailable.
+- RPC failure.
+- Worker rejection.
+- Duplicate assignment.
+
+Acceptance:
+
+CloudX can schedule and execute tasks across workers.
+
+
+======================================================================
+MILESTONE 7 — SERVICES AND RECONCILIATION
+======================================================================
+
+Goal:
+
+Build CloudX's core service orchestration model.
+
+----------------------------------------------------------------------
+PHASE 23 — Service Definition
+----------------------------------------------------------------------
+
+Objective:
+
+Create service configuration.
+
+Example:
+
+services:
+
+  api:
+    command: ./api
+    replicas: 3
+
+    resources:
+      cpu: 1
+      memory: 512MB
+
+    ports:
+      - 8080
+
+    restart_policy:
+      type: always
+
+Support:
+
+- Command
+- Arguments
+- Environment
+- Working directory
+- Replicas
+- Resources
+- Restart policy
+- Health checks
+- Ports
+- Volumes
+
+Acceptance:
+
+CloudX can parse and validate a service definition.
+
+
+----------------------------------------------------------------------
+PHASE 24 — Service Deployment
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx deploy
+
+Deployment flow:
+
+Config
+→ Validate
+→ Persist desired state
+→ Reconcile
+→ Schedule
+→ Assign
+→ Execute
+→ Monitor
+
+Support:
+
+cloudx service list
+cloudx service inspect
+
+Acceptance:
+
+A user can deploy a service using CloudX.
+
+
+----------------------------------------------------------------------
+PHASE 25 — Reconciliation Engine
+----------------------------------------------------------------------
+
+Objective:
+
+Implement the central reconciliation loop.
+
+Concept:
+
+desired replicas = 3
+actual replicas = 2
+
+Reconciler creates one task.
+
+If:
+
+desired = 3
+actual = 4
+
+Reconciler removes one task.
+
+If:
+
+worker lost
+
+Reconciler identifies orphaned task and reschedules it.
+
+Reconciliation must be idempotent.
+
+It must be safe to run repeatedly.
+
+Acceptance:
+
+CloudX converges toward desired state.
+
+
+----------------------------------------------------------------------
+PHASE 26 — Replica Scaling
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx service scale api 5
+
+Scaling logic:
+
+Desired replicas change.
+
+Reconciler creates/removes tasks.
+
+Tests:
+
+1 → 3
+3 → 5
+5 → 2
+2 → 0
+0 → 1
+
+Acceptance:
+
+Service scaling works without manually managing individual processes.
+
+
+----------------------------------------------------------------------
+PHASE 27 — Restart Policies
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+never
+on-failure
+always
+
+Track restart attempts.
+
+Support backoff.
+
+Avoid infinite rapid restart loops.
+
+State:
+
+RUNNING
+→ FAILED
+→ BACKOFF
+→ RESTARTING
+
+After repeated failures:
+
+CRASH_LOOP
+
+Acceptance:
+
+CloudX handles process crashes predictably.
+
+
+======================================================================
+MILESTONE 8 — HEALTH AND FAILURE RECOVERY
+======================================================================
+
+Goal:
+
+Make CloudX self-healing.
+
+This is one of the primary interview/demo milestones.
+
+----------------------------------------------------------------------
+PHASE 28 — Health Checks
+----------------------------------------------------------------------
+
+Objective:
+
+Implement health checks.
+
+Initial checks:
+
+Process alive
+TCP port
+HTTP endpoint
+
+Health state:
+
+UNKNOWN
+HEALTHY
+UNHEALTHY
+
+Configurable:
+
+interval
+timeout
+failure threshold
+success threshold
+
+Acceptance:
+
+CloudX can distinguish process-running from service-healthy.
+
+
+----------------------------------------------------------------------
+PHASE 29 — Automatic Failure Recovery
+----------------------------------------------------------------------
+
+Objective:
+
+Connect health failures to reconciliation.
+
+Examples:
+
+Process crashes:
+→ detect
+→ mark FAILED
+→ restart according to policy
+
+Worker disappears:
+→ heartbeat timeout
+→ mark LOST
+→ identify orphaned tasks
+→ reschedule
+
+Health check fails:
+→ mark UNHEALTHY
+→ restart/reschedule according to policy
+
+Acceptance:
+
+CloudX automatically recovers supported failures.
+
+
+----------------------------------------------------------------------
+PHASE 30 — Failure Simulation
+----------------------------------------------------------------------
+
+Objective:
+
+Create deterministic failure-testing tools.
+
+Support test scenarios:
+
+- Kill process.
+- Stop worker.
+- Break health endpoint.
+- Delay heartbeat.
+- Exhaust resources.
+
+Do not create dangerous system-level fault injection.
+
+The simulation mechanism should target CloudX-managed workloads.
+
+Acceptance:
+
+Failure recovery can be demonstrated repeatedly.
+
+
+----------------------------------------------------------------------
+PHASE 31 — Reconciliation Reliability
+----------------------------------------------------------------------
+
+Objective:
+
+Test reconciliation under failures.
+
+Scenarios:
+
+- Control-plane restart.
+- Worker restart.
+- Process crash.
+- RPC failure.
+- Duplicate event.
+- Delayed response.
+- Lost assignment.
+- Worker recovery.
+
+The system must avoid:
+
+- Duplicate tasks.
+- Permanent orphaned tasks.
+- Infinite reconciliation loops.
+- Corrupted state.
+
+Acceptance:
+
+Reconciliation remains correct after control-plane and worker failures.
+
+
+======================================================================
+MILESTONE 9 — DEPLOYMENTS AND ROLLBACKS
+======================================================================
+
+Goal:
+
+Introduce immutable application versions.
+
+----------------------------------------------------------------------
+PHASE 32 — Deployment Model
+----------------------------------------------------------------------
+
+Objective:
+
+Create immutable deployment records.
+
+Deployment contains:
+
+- Service
+- Version
+- Configuration
+- Artifact reference
+- Environment
+- Resources
+- Replica count
+- Runtime
+- Timestamp
+
+Example:
+
+api:v1
+api:v2
+api:v3
+
+Deployments must never be silently mutated.
+
+Acceptance:
+
+Every deployment is independently identifiable.
+
+
+----------------------------------------------------------------------
+PHASE 33 — Versioned Deployment
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx deploy api:v2
+
+Deployment manager creates a new immutable version.
+
+Desired service state points to the selected deployment.
+
+Reconciler transitions workloads.
+
+Acceptance:
+
+Multiple versions can exist simultaneously in state.
+
+
+----------------------------------------------------------------------
+PHASE 34 — Rolling Deployment
+----------------------------------------------------------------------
+
+Objective:
+
+Implement basic rolling replacement.
+
+Example:
+
+3 replicas
+
+v1:
+task-1
+task-2
+task-3
+
+Deploy v2.
+
+CloudX replaces replicas progressively.
+
+Requirements:
+
+- Maximum unavailable replicas.
+- Health verification.
+- Failure detection.
+- Stop rollout if unhealthy.
+
+Acceptance:
+
+A service can move from v1 to v2 without replacing every replica at once.
+
+
+----------------------------------------------------------------------
+PHASE 35 — Rollback
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx rollback api
+
+Rollback should point desired state to a known previous deployment.
+
+Do not create a fake reverse deployment.
+
+Record rollback event.
+
+Acceptance:
+
+v2 → rollback → v1
+
+The cluster converges back to v1.
+
+
+======================================================================
+MILESTONE 10 — EVENTS, LOGS AND AUDITABILITY
+======================================================================
+
+Goal:
+
+Make CloudX observable and debuggable.
+
+----------------------------------------------------------------------
+PHASE 36 — Event System
+----------------------------------------------------------------------
+
+Objective:
+
+Implement persistent events.
+
+Examples:
+
+WORKER_REGISTERED
+WORKER_LOST
+SERVICE_CREATED
+DEPLOYMENT_STARTED
+TASK_ASSIGNED
+PROCESS_STARTED
+PROCESS_CRASHED
+HEALTH_CHECK_FAILED
+TASK_RESCHEDULED
+DEPLOYMENT_ROLLED_BACK
+
+Each event:
+
+- ID
+- Type
+- Timestamp
+- Source
+- Entity ID
+- Payload
+
+Events must be append-oriented.
+
+Acceptance:
+
+Important cluster actions generate events.
+
+
+----------------------------------------------------------------------
+PHASE 37 — Event CLI
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx events
+cloudx events --service api
+cloudx events --node worker-1
+cloudx events --since 1h
+
+Display events chronologically.
+
+Acceptance:
+
+A developer can understand what happened to a workload.
+
+
+----------------------------------------------------------------------
+PHASE 38 — Service Logs
+----------------------------------------------------------------------
+
+Objective:
+
+Collect stdout/stderr from CloudX-managed processes.
+
+Support:
+
+cloudx service logs api
+cloudx service logs api --follow
+
+Logs must be associated with:
+
+service
+deployment
+task
+worker
+
+Avoid unlimited in-memory buffering.
+
+Acceptance:
+
+Developers can inspect workload logs through CloudX.
+
+
+----------------------------------------------------------------------
+PHASE 39 — Cluster Status
+----------------------------------------------------------------------
+
+Objective:
+
+Create the primary terminal status interface.
+
+Example:
+
+CLOUDX CLUSTER
+
+Control Plane: READY
+Workers: 3
+Services: 8
+Jobs: 4
+
+HEALTH
+Healthy: 7
+Degraded: 1
+Failed: 0
+
+NODE       CPU    MEMORY    STATUS
+local      32%    4.1GB    READY
+desktop    18%    7.2GB    READY
+server     51%    3.8GB    READY
+
+Keep output useful rather than decorative.
+
+Acceptance:
+
+One command provides a meaningful cluster overview.
+
+
+======================================================================
+MILESTONE 11 — JOB EXECUTION
+======================================================================
+
+Goal:
+
+Support finite workloads using the same scheduling engine.
+
+----------------------------------------------------------------------
+PHASE 40 — Job Model
+----------------------------------------------------------------------
+
+Objective:
+
+Define jobs as finite workloads.
+
+Job states:
+
+PENDING
+ASSIGNED
+RUNNING
+SUCCEEDED
+FAILED
+CANCELLED
+
+Job contains:
+
+- Command
+- Arguments
+- Environment
+- Resources
+- Retry policy
+- Timeout
+
+Acceptance:
+
+Jobs are represented separately from long-running services.
+
+
+----------------------------------------------------------------------
+PHASE 41 — Job Scheduler Integration
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx job run migration
+
+Job should use the same:
+
+scheduler
+worker
+runtime
+resource system
+events
+logs
+
+Acceptance:
+
+Jobs execute through the existing CloudX infrastructure instead of
+creating a second execution architecture.
+
+
+----------------------------------------------------------------------
+PHASE 42 — Job Lifecycle and Retry
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx job list
+cloudx job inspect
+cloudx job logs
+
+Support:
+
+- Timeout.
+- Retry.
+- Cancellation.
+- Exit-code tracking.
+
+Acceptance:
+
+CloudX supports reliable finite workload execution.
+
+
+======================================================================
+MILESTONE 12 — PERSISTENT VOLUMES
+======================================================================
+
+Goal:
+
+Allow workloads to persist data independently of process lifetime.
+
+----------------------------------------------------------------------
+PHASE 43 — Volume Model
+----------------------------------------------------------------------
+
+Objective:
+
+Create volume abstraction.
+
+Volume contains:
+
+- ID
+- Name
+- Driver
+- Location
+- Size metadata
+- Owner/reference
+- Created timestamp
+
+Initial driver:
+
+LocalVolume
+
+Acceptance:
+
+CloudX can create and track persistent volumes.
+
+
+----------------------------------------------------------------------
+PHASE 44 — Volume Lifecycle
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx volume create data
+cloudx volume list
+cloudx volume inspect
+cloudx volume delete data
+
+Mount local directories into native processes.
+
+Do not attempt distributed storage.
+
+Acceptance:
+
+A process can restart without losing data stored in a CloudX volume.
+
+
+----------------------------------------------------------------------
+PHASE 45 — Volume and Scheduling Constraints
+----------------------------------------------------------------------
+
+Objective:
+
+Ensure a workload requiring a local volume is scheduled onto a
+compatible worker.
+
+This introduces storage-aware scheduling.
+
+Example:
+
+volume exists on worker-2
+
+task requiring volume must run on worker-2.
+
+Acceptance:
+
+CloudX does not schedule volume-dependent tasks onto incompatible nodes.
+
+
+======================================================================
+MILESTONE 13 — SERVICE DISCOVERY AND NETWORKING
+======================================================================
+
+Goal:
+
+Allow services to communicate using logical identities.
+
+----------------------------------------------------------------------
+PHASE 46 — Service Registry
+----------------------------------------------------------------------
+
+Objective:
+
+Create registry:
+
+service name
+→ healthy task endpoints
+
+Example:
+
+api
+→ 10.0.0.5:8000
+→ 10.0.0.6:8000
+
+Registry must update when:
+
+- Task starts.
+- Task stops.
+- Health changes.
+- Worker disappears.
+
+Acceptance:
+
+Registry represents only usable service instances.
+
+
+----------------------------------------------------------------------
+PHASE 47 — Service Discovery API
+----------------------------------------------------------------------
+
+Objective:
+
+Provide a discovery interface.
+
+Example conceptual API:
+
+ResolveService("api")
+
+returns healthy endpoints.
+
+Support CLI:
+
+cloudx service endpoints api
+
+Acceptance:
+
+Applications can obtain service endpoints without hardcoding worker
+addresses.
+
+
+----------------------------------------------------------------------
+PHASE 48 — Port Mapping
+----------------------------------------------------------------------
+
+Objective:
+
+Support explicit host/service port mapping.
+
+Example:
+
+ports:
+  - 8080:8000
+
+Implement validation to prevent conflicts.
+
+Acceptance:
+
+A service can expose a predictable endpoint.
+
+
+----------------------------------------------------------------------
+PHASE 49 — Logical CloudX Network
+----------------------------------------------------------------------
+
+Objective:
+
+Introduce the concept of CloudX networks.
+
+Example:
+
+cloudx network create backend
+
+Services can join networks.
+
+A service should be able to reference another service logically.
+
+Do NOT implement a full Kubernetes-style overlay network.
+
+Initial goal:
+
+logical service grouping + registry-based discovery.
+
+Acceptance:
+
+Services can belong to logical networks and discover compatible peers.
+
+
+======================================================================
+MILESTONE 14 — MULTI-NODE PRIVATE CLOUD
+======================================================================
+
+Goal:
+
+Make CloudX a genuine multi-machine private cloud runtime.
+
+----------------------------------------------------------------------
+PHASE 50 — Remote Worker Join
+----------------------------------------------------------------------
+
+Objective:
+
+Support:
+
+cloudx worker join <endpoint> <token>
+
+Worker connects from another machine.
+
+Implement secure bootstrap identity.
+
+Acceptance:
+
+Machine B can join Machine A's CloudX cluster.
+
+
+----------------------------------------------------------------------
+PHASE 51 — Cluster Token and Authentication
+----------------------------------------------------------------------
+
+Objective:
+
+Protect worker registration.
+
+Implement cluster bootstrap token.
+
+Worker must prove possession during registration.
+
+Reject:
+
+- Invalid token.
+- Expired token.
+- Unknown cluster.
+- Duplicate identity.
+
+Do not implement a massive identity-management platform.
+
+Acceptance:
+
+Only authorized workers can join the cluster.
+
+
+----------------------------------------------------------------------
+PHASE 52 — Multi-Node Scheduling
+----------------------------------------------------------------------
+
+Objective:
+
+Validate scheduling across multiple physical machines.
+
+Cluster:
+
+Machine A
+Machine B
+Machine C
+
+Tasks should be distributed according to scheduler decisions.
+
+Acceptance:
+
+A service can run replicas across multiple workers.
+
+
+----------------------------------------------------------------------
+PHASE 53 — Node Drain
+----------------------------------------------------------------------
+
+Objective:
+
+Implement:
+
+cloudx node drain worker-2
+
+Draining means:
+
+- Do not schedule new tasks.
+- Existing tasks may be gracefully stopped/migrated.
+- Reconciliation moves workloads elsewhere.
+
+State:
+
+READY
+→ DRAINING
+→ EMPTY
+
+Acceptance:
+
+A worker can be safely removed from active scheduling.
+
+
+----------------------------------------------------------------------
+PHASE 54 — Cluster Recovery
+----------------------------------------------------------------------
+
+Objective:
+
+Test actual multi-node failure recovery.
+
+Scenario:
+
+Worker A
+Worker B
+Worker C
+
+API replicas:
+
+3
+
+Kill Worker B.
+
+CloudX must:
+
+1. Detect heartbeat loss.
+2. Mark Worker B LOST.
+3. Detect affected tasks.
+4. Mark tasks orphaned/lost.
+5. Schedule replacements.
+6. Start replacements.
+7. Health-check them.
+8. Restore desired replica count.
+
+Acceptance:
+
+CloudX demonstrates genuine distributed workload recovery.
+
+
+======================================================================
+MILESTONE 15 — RESOURCE-AWARE ORCHESTRATION
+======================================================================
+
+Goal:
+
+Make scheduling meaningfully resource-aware.
+
+----------------------------------------------------------------------
+PHASE 55 — Resource Reservations
+----------------------------------------------------------------------
+
+Objective:
+
+Track resources allocated to CloudX tasks.
+
+Maintain:
+
+capacity
+reserved
+available
+
+for:
+
+CPU
+Memory
+
+Prevent overcommit unless explicitly configured.
+
+Acceptance:
+
+Scheduler respects resource reservations.
+
+
+----------------------------------------------------------------------
+PHASE 56 — Improved Scheduling Score
+----------------------------------------------------------------------
+
+Objective:
+
+Improve scheduler scoring.
+
+Consider:
+
+- Available CPU.
+- Available memory.
+- Existing task count.
+- Resource pressure.
+- Affinity.
+- Anti-affinity.
+- Node state.
+
+Maintain deterministic behavior.
+
+Acceptance:
+
+Scheduling decisions remain explainable and reproducible.
+
+
+----------------------------------------------------------------------
+PHASE 57 — Scheduling Explanation
+----------------------------------------------------------------------
+
+Objective:
+
+Add:
+
+cloudx task explain <task-id>
+
+Output:
+
+Selected worker: worker-2
+
+Reasons:
+- CPU available: sufficient
+- Memory available: sufficient
+- Worker healthy
+- Runtime supported
+- Volume available
+- Highest scheduler score
+
+This is valuable for debugging and interviews.
+
+Acceptance:
+
+A developer can understand WHY a task was scheduled on a node.
+
+
+======================================================================
+MILESTONE 16 — OBSERVABILITY
+======================================================================
+
+Goal:
+
+Make CloudX measurable rather than merely functional.
+
+----------------------------------------------------------------------
+PHASE 58 — Metrics Model
+----------------------------------------------------------------------
+
+Objective:
+
+Define metrics for:
+
+Control plane:
+- reconciliation cycles
+- scheduling latency
+- RPC failures
+- state operations
+
+Worker:
+- CPU
+- memory
+- task count
+- process restarts
+
+Service:
+- replicas desired
+- replicas running
+- health failures
+- restart count
+
+Job:
+- execution duration
+- success/failure count
+
+Acceptance:
+
+Core CloudX behavior is measurable.
+
+
+----------------------------------------------------------------------
+PHASE 59 — OpenTelemetry-Compatible Architecture
+----------------------------------------------------------------------
+
+Objective:
+
+Introduce tracing/metrics interfaces compatible with OpenTelemetry.
+
+Do not require an external observability server.
+
+CloudX must remain usable without external infrastructure.
+
+Acceptance:
+
+Instrumentation can later be connected to external observability
+systems without redesigning CloudX.
+
+
+----------------------------------------------------------------------
+PHASE 60 — Diagnostics
+----------------------------------------------------------------------
+
+Objective:
+
+Create:
+
+cloudx diagnose
+
+Diagnostics should check:
+
+- Control plane health.
+- Worker connectivity.
+- Database integrity.
+- Heartbeat status.
+- Scheduler status.
+- Orphaned tasks.
+- Failed deployments.
+- Resource pressure.
+- Configuration problems.
+
+Acceptance:
+
+A developer can run one command to identify common CloudX problems.
+
+
+======================================================================
+MILESTONE 17 — CLI MATURITY
+======================================================================
+
+Goal:
+
+Turn CloudX CLI into a professional developer interface.
+
+----------------------------------------------------------------------
+PHASE 61 — CLI Command Structure
+----------------------------------------------------------------------
+
+Finalize:
+
+cloudx init
+cloudx status
+
+cloudx cluster init
+cloudx cluster status
+cloudx cluster nodes
+
+cloudx worker start
+cloudx worker join
+cloudx worker status
+
+cloudx deploy
+
+cloudx service list
+cloudx service inspect
+cloudx service scale
+cloudx service restart
+cloudx service logs
+cloudx service endpoints
+
+cloudx job run
+cloudx job list
+cloudx job inspect
+cloudx job logs
+
+cloudx node list
+cloudx node drain
+
+cloudx volume create
+cloudx volume list
+cloudx volume inspect
+cloudx volume delete
+
+cloudx network create
+cloudx network list
+
+cloudx events
+cloudx diagnose
+
+cloudx rollback
+
+Ensure command naming is consistent.
+
+
+----------------------------------------------------------------------
+PHASE 62 — Machine-Readable Output
+----------------------------------------------------------------------
+
+Objective:
+
+Support:
+
+--output json
+
+for major commands.
+
+This allows CloudX to integrate with:
+
+- Scripts
+- CI/CD
+- Other developer tools
+- Future dashboards
+
+Acceptance:
+
+CLI can serve both humans and automation.
+
+
+----------------------------------------------------------------------
+PHASE 63 — CLI Error UX
+----------------------------------------------------------------------
+
+Objective:
+
+Make failures understandable.
+
+Bad:
+
+rpc error: code = Unavailable desc = connection refused
+
+Better:
+
+CloudX control plane is unreachable.
+
+Endpoint:
+127.0.0.1:7000
+
+Possible causes:
+- Control plane is stopped.
+- Incorrect endpoint.
+- Network unavailable.
+
+Provide technical details under:
+
+--verbose
+
+Acceptance:
+
+CLI is usable by developers without hiding underlying technical errors.
+
+
+======================================================================
+MILESTONE 18 — SECURITY HARDENING
+======================================================================
+
+Goal:
+
+Secure CloudX without turning v1 into a massive security project.
+
+----------------------------------------------------------------------
+PHASE 64 — RPC Security
+----------------------------------------------------------------------
+
+Objective:
+
+Protect worker/control-plane communication.
+
+Prepare architecture for:
+
+TLS
+mTLS
+
+At minimum:
+
+- Authentication.
+- Identity verification.
+- Secure credential handling.
+
+Do not store secrets in plaintext logs.
+
+
+----------------------------------------------------------------------
+PHASE 65 — Secret Handling
+----------------------------------------------------------------------
+
+Objective:
+
+Prevent secrets from appearing in:
+
+- Logs.
+- Events.
+- CLI output.
+- Error messages.
+
+Environment variables and secret references must be redacted where
+appropriate.
+
+Acceptance:
+
+CloudX does not accidentally expose common credential values.
+
+
+----------------------------------------------------------------------
+PHASE 66 — Permission Boundaries
+----------------------------------------------------------------------
+
+Objective:
+
+Ensure CloudX clearly distinguishes:
+
+- Control-plane operations.
+- Worker operations.
+- Runtime operations.
+
+Validate all externally supplied IDs and paths.
+
+Prevent path traversal in volume/path handling.
+
+Acceptance:
+
+Basic security boundaries are enforced.
+
+
+======================================================================
+MILESTONE 19 — TESTING AND SYSTEM RELIABILITY
+======================================================================
+
+Goal:
+
+Turn CloudX from a working prototype into a reliable engineering
+system.
+
+----------------------------------------------------------------------
+PHASE 67 — Unit Test Completion
+----------------------------------------------------------------------
+
+Test:
+
+- Config
+- State
+- Scheduler
+- Runtime
+- Registry
+- Health
+- Reconciliation
+- Deployment
+- Rollback
+- Events
+- Volumes
+- Networking
+
+Target:
+
+High meaningful coverage.
+
+Do not chase a meaningless 100% number.
+
+
+----------------------------------------------------------------------
+PHASE 68 — Integration Test Harness
+----------------------------------------------------------------------
+
+Objective:
+
+Create automated local cluster tests.
+
+Example:
+
+Control Plane
++
+3 Workers
++
+Services
+
+Test:
+
+Deploy
+→ Scale
+→ Crash
+→ Recover
+→ Deploy v2
+→ Rollback
+
+Tests must run without external cloud services.
+
+
+----------------------------------------------------------------------
+PHASE 69 — Failure Testing
+----------------------------------------------------------------------
+
+Test:
+
+- Worker crash.
+- Process crash.
+- Control-plane restart.
+- SQLite interruption where practical.
+- RPC timeout.
+- Duplicate messages.
+- Delayed messages.
+- Health failure.
+- Resource exhaustion.
+- Worker reconnection.
+
+Acceptance:
+
+Known failure scenarios behave deterministically.
+
+
+----------------------------------------------------------------------
+PHASE 70 — Race and Concurrency Testing
+----------------------------------------------------------------------
+
+Objective:
+
+Use Go race detector.
+
+Run:
+
+go test -race ./...
+
+Identify:
+
+- State races.
+- Worker manager races.
+- Scheduler races.
+- Reconciliation races.
+- Event races.
+
+Acceptance:
+
+No known race detector failures in supported paths.
+
+
+----------------------------------------------------------------------
+PHASE 71 — End-to-End Test Suite
+----------------------------------------------------------------------
+
+Objective:
+
+Create the CloudX golden-path test.
+
+Scenario:
+
+1. Initialize cluster.
+2. Start control plane.
+3. Start three workers.
+4. Deploy API.
+5. Scale API to 3.
+6. Verify health.
+7. Kill one process.
+8. Verify restart.
+9. Kill worker.
+10. Verify rescheduling.
+11. Deploy v2.
+12. Verify rollout.
+13. Trigger failure.
+14. Rollback.
+15. Verify v1.
+16. Inspect events.
+17. Inspect logs.
+
+Acceptance:
+
+Entire scenario executes automatically.
+
+
+======================================================================
+MILESTONE 20 — DOCUMENTATION AND DEVELOPER EXPERIENCE
+======================================================================
+
+Goal:
+
+Make CloudX understandable to engineers other than its author.
+
+----------------------------------------------------------------------
+PHASE 72 — Architecture Documentation
+----------------------------------------------------------------------
+
+Document:
+
+- Overall architecture.
+- Control plane.
+- Worker.
+- Runtime.
+- Scheduler.
+- State model.
+- Reconciliation.
+- Networking.
+- Failure recovery.
+
+Include architecture diagrams.
+
+Acceptance:
+
+A new engineer can understand CloudX architecture without reading the
+entire codebase.
+
+
+----------------------------------------------------------------------
+PHASE 73 — Developer Documentation
+----------------------------------------------------------------------
+
+Document:
+
+Installation
+Configuration
+Cluster initialization
+Worker joining
+Deployments
+Scaling
+Jobs
+Volumes
+Networking
+Logs
+Events
+Rollback
+Diagnostics
+
+Include complete examples.
+
+
+----------------------------------------------------------------------
+PHASE 74 — Runtime and Scheduler Documentation
+----------------------------------------------------------------------
+
+Document design decisions:
+
+Why native runtime first?
+Why not Kubernetes?
+Why SQLite?
+Why gRPC?
+Why desired/actual state?
+Why deterministic scheduling?
+Why reconciliation?
+
+This documentation is especially important for technical interviews.
+
+
+----------------------------------------------------------------------
+PHASE 75 — Troubleshooting Guide
+----------------------------------------------------------------------
+
+Document common failures:
+
+Control plane unavailable
+Worker cannot join
+Worker lost
+Service crash
+Health check failure
+Deployment stuck
+Rollback failure
+Volume conflict
+Port conflict
+Insufficient resources
+
+Acceptance:
+
+Common failures have documented resolution paths.
+
+
+======================================================================
+MILESTONE 21 — PERFORMANCE AND HARDENING
+======================================================================
+
+Goal:
+
+Validate that CloudX behaves well under realistic local/private-cloud
+loads.
+
+----------------------------------------------------------------------
+PHASE 76 — Scheduler Benchmarking
+----------------------------------------------------------------------
+
+Benchmark scheduling with:
+
+10 workers
+50 workers
+100 workers
+500 workers
+
+Measure:
+
+- Scheduling latency.
+- Memory usage.
+- Throughput.
+
+Do not optimize prematurely.
+
+Acceptance:
+
+Scheduler performance is measured and documented.
+
+
+----------------------------------------------------------------------
+PHASE 77 — Reconciliation Benchmarking
+----------------------------------------------------------------------
+
+Test clusters with:
+
+10 services
+100 services
+1000 tasks
+
+Measure:
+
+- Reconciliation duration.
+- State queries.
+- Scheduling overhead.
+- Event generation.
+
+Acceptance:
+
+Reconciliation behavior is measurable.
+
+
+----------------------------------------------------------------------
+PHASE 78 — Worker Stress Testing
+----------------------------------------------------------------------
+
+Run many short-lived tasks.
+
+Measure:
+
+- Process creation.
+- Process cleanup.
+- Log collection.
+- State updates.
+- Resource reporting.
+
+Look for:
+
+- Leaks.
+- Zombie processes.
+- Goroutine growth.
+- File descriptor leaks.
+
+Acceptance:
+
+Worker remains stable under sustained workload.
+
+
+----------------------------------------------------------------------
+PHASE 79 — Database Hardening
+----------------------------------------------------------------------
+
+Validate:
+
+- SQLite locking behavior.
+- Transactions.
+- Recovery.
+- Migration.
+- Concurrent reads/writes.
+- Corrupt/partial state handling where practical.
+
+Acceptance:
+
+State persistence is reliable for the intended v1 cluster scale.
+
+
+======================================================================
+MILESTONE 22 — RELEASE ENGINEERING
+======================================================================
+
+Goal:
+
+Prepare CloudX for an actual v1.0.0 release.
+
+----------------------------------------------------------------------
+PHASE 80 — Cross-Platform Build
+----------------------------------------------------------------------
+
+Build:
+
+Windows
+Linux
+macOS
+
+for supported architectures.
+
+Validate:
+
+- CLI.
+- Worker.
+- Native runtime.
+- File paths.
+- Signals where platform differences exist.
+- Resource monitoring.
+
+Acceptance:
+
+Supported platforms produce usable binaries.
+
+
+----------------------------------------------------------------------
+PHASE 81 — Release Packaging
+----------------------------------------------------------------------
+
+Create release artifacts:
+
+cloudx
+cloudx-worker
+
+Include:
+
+- Version.
+- Commit.
+- Build timestamp.
+
+Provide installation instructions.
+
+Acceptance:
+
+A developer can install CloudX without building from source.
+
+
+----------------------------------------------------------------------
+PHASE 82 — Versioning and Compatibility
+----------------------------------------------------------------------
+
+Define:
+
+CLI versioning
+Protocol versioning
+State schema versioning
+Configuration versioning
+
+Ensure upgrades do not silently corrupt state.
+
+Acceptance:
+
+CloudX has a defined compatibility strategy.
+
+
+----------------------------------------------------------------------
+PHASE 83 — Security and Release Audit
+----------------------------------------------------------------------
+
+Audit:
+
+- Secrets.
+- Path traversal.
+- Command execution.
+- RPC authentication.
+- Input validation.
+- SQLite queries.
+- File permissions.
+- Log redaction.
+- Dependency vulnerabilities.
+
+Run static analysis and security tooling.
+
+Acceptance:
+
+No known critical security issues remain.
+
+
+======================================================================
+MILESTONE 23 — V1.0.0 FINAL SYSTEM AUDIT
+======================================================================
+
+Goal:
+
+Determine whether CloudX is genuinely ready for v1.0.0.
+
+----------------------------------------------------------------------
+PHASE 84 — Functional Audit
+----------------------------------------------------------------------
+
+Verify:
+
+[ ] Cluster initialization
+[ ] Worker startup
+[ ] Worker registration
+[ ] Heartbeats
+[ ] Failure detection
+[ ] Native process runtime
+[ ] Service deployment
+[ ] Scaling
+[ ] Scheduling
+[ ] Reconciliation
+[ ] Health checks
+[ ] Restart policies
+[ ] Failure recovery
+[ ] Deployment versions
+[ ] Rolling deployment
+[ ] Rollback
+[ ] Jobs
+[ ] Volumes
+[ ] Service registry
+[ ] Service discovery
+[ ] Events
+[ ] Logs
+[ ] Metrics
+[ ] Multi-node cluster
+[ ] Node drain
+[ ] CLI
+[ ] JSON output
+[ ] Diagnostics
+
+
+----------------------------------------------------------------------
+PHASE 85 — Architecture Audit
+----------------------------------------------------------------------
+
+Verify that:
+
+[ ] Control plane owns desired state.
+[ ] Workers own actual execution.
+[ ] Scheduler is deterministic.
+[ ] Reconciliation is idempotent.
+[ ] Runtime is abstracted.
+[ ] State access is abstracted.
+[ ] SQLite is not leaked into business logic.
+[ ] gRPC contracts are versionable.
+[ ] Worker failure is recoverable.
+[ ] Process failure is recoverable.
+[ ] Service discovery reflects health.
+[ ] Deployment versions are immutable.
+[ ] Rollback uses known versions.
+[ ] Jobs reuse the scheduling system.
+[ ] Resource allocation is respected.
+
+
+----------------------------------------------------------------------
+PHASE 86 — Reliability Audit
+----------------------------------------------------------------------
+
+Run:
+
+go test ./...
+go test -race ./...
+
+Run all integration tests.
+
+Verify:
+
+- No known race conditions.
+- No orphaned processes.
+- No uncontrolled goroutine growth.
+- No unrecoverable cluster-state inconsistencies.
+- No duplicate task execution in supported scenarios.
+- No infinite reconciliation loops.
+
+Generate:
+
+docs/reports/v1.0.0-reliability-audit.md
+
+
+----------------------------------------------------------------------
+PHASE 87 — End-to-End Killer Demo
+----------------------------------------------------------------------
+
+Execute the final demonstration.
+
+ENVIRONMENT:
+
+Machine A
+- Control Plane
+- Worker
+
+Machine B
+- Worker
+
+Machine C
+- Worker
+
+SCENARIO:
+
+1. Initialize CloudX cluster.
+
+2. Join Machine B.
+
+3. Join Machine C.
+
+4. Deploy API service.
+
+5. Scale:
+   API 1 → 5
+
+6. Observe scheduler distributing tasks.
+
+7. Inspect:
+   cloudx status
+
+8. Inspect:
+   cloudx events
+
+9. Kill a running API process.
+
+10. CloudX detects the crash.
+
+11. CloudX restarts the task.
+
+12. Stop an entire worker.
+
+13. Heartbeat timeout occurs.
+
+14. CloudX marks worker LOST.
+
+15. Orphaned workload is detected.
+
+16. Scheduler selects another worker.
+
+17. Replacement workload starts.
+
+18. Health check succeeds.
+
+19. Deploy API v2.
+
+20. Rolling deployment occurs.
+
+21. Introduce a v2 failure.
+
+22. Rollback.
+
+23. Verify v1 becomes desired state.
+
+24. Inspect events and logs.
+
+25. Run diagnostics.
+
+Acceptance:
+
+The complete scenario demonstrates:
+
+Scheduling
++
+Distributed execution
++
+Health monitoring
++
+Failure detection
++
+Automatic recovery
++
+Deployment
++
+Rollback
++
+Observability
+
+This is the primary CloudX technical demonstration.
+
+
+----------------------------------------------------------------------
+PHASE 88 — V1.0.0 Release Audit
+----------------------------------------------------------------------
+
+Create:
+
+docs/reports/v1.0.0-release-audit.md
+
+The report must contain:
+
+1. Executive summary
+2. Implemented capabilities
+3. Architecture verification
+4. Test results
+5. Integration test results
+6. Failure recovery results
+7. Performance results
+8. Security audit
+9. Cross-platform validation
+10. Known limitations
+11. Deferred features
+12. Release decision
+
+Possible final statuses:
+
+READY
+READY WITH DOCUMENTED LIMITATIONS
+NOT READY
+
+The status must be based on actual test/audit results.
+
+No feature should be marked complete merely because its code exists.
+
+
+======================================================================
+V1.0.0 RELEASE BOUNDARY
+======================================================================
+
+CloudX is considered v1.0.0-ready ONLY after PHASE 88 is complete.
+
+The following are REQUIRED for v1.0.0:
+
+CORE
+- Go runtime
+- CLI
+- Control plane
+- Worker daemon
+- gRPC communication
+- SQLite state
+
+ORCHESTRATION
+- Desired state
+- Actual state
+- Reconciliation
+- Scheduler
+- Resource-aware scheduling
+- Service deployment
+- Scaling
+- Restart policies
+
+RELIABILITY
+- Health checks
+- Heartbeats
+- Worker failure detection
+- Process failure recovery
+- Automatic rescheduling
+- Idempotent reconciliation
+
+DEPLOYMENT
+- Immutable deployment versions
+- Rolling deployment
+- Rollback
+
+WORKLOADS
+- Services
+- Jobs
+
+INFRASTRUCTURE
+- Multi-node workers
+- Persistent local volumes
+- Service registry
+- Service discovery
+- Basic networking
+
+OBSERVABILITY
+- Logs
+- Events
+- Metrics
+- Diagnostics
+- Cluster status
+
+SECURITY
+- Worker authentication
+- Secret redaction
+- Input validation
+- Basic RPC security
+
+QUALITY
+- Unit tests
+- Integration tests
+- End-to-end tests
+- Race testing
+- Failure testing
+- Cross-platform validation
+- Release audit
+
+
+======================================================================
+EXPLICITLY DEFERRED AFTER V1.0.0
+======================================================================
+
+These features MUST NOT delay v1.0.0:
+
+1. Full Docker runtime
+2. Kubernetes compatibility
+3. Kubernetes API compatibility
+4. Full overlay networking
+5. Distributed object storage
+6. S3-compatible storage
+7. Distributed database
+8. Multi-region clusters
+9. Cloud-provider integration
+10. Complex web dashboard
+11. AI-driven scheduling
+12. AI-driven autonomous remediation
+13. Full service mesh
+14. Advanced network policies
+15. GPU scheduling
+16. Serverless/function runtime
+17. Massive-scale cluster optimization
+
+
+======================================================================
+POST-V1.0.0 ROADMAP
+======================================================================
+
+After v1.0.0, CloudX can evolve toward:
+
+V1.1
+- Docker runtime
+- Better deployment strategies
+- Advanced scheduling
+- Improved networking
+
+V1.2
+- Overlay networking
+- Network policies
+- Better security
+- Advanced volume abstractions
+
+V1.3
+- Dashboard
+- Remote management
+- Enhanced observability
+
+V2.0
+- Distributed state backend
+- Advanced cluster topology
+- Intelligent scheduling
+- Container orchestration
+- Cloud/on-prem hybrid support
+
+Future CloudX Intelligence:
+
+AI should remain an explanation/diagnostic layer.
+
+Examples:
+
+cloudx explain service api
+
+"API has restarted 7 times in the last 10 minutes."
+
+Possible explanation chain:
+
+Health check failures
+        ↓
+Process restart
+        ↓
+Memory pressure
+        ↓
+Worker resource saturation
+        ↓
+Scheduling history
+
+AI should explain the evidence.
+
+AI must NOT initially control the core scheduler or reconciliation
+engine.
+
+
+======================================================================
+FINAL ARCHITECTURAL RULES
+======================================================================
+
+RULE 1:
+CloudX must own orchestration logic.
+
+RULE 2:
+Do not replace CloudX engineering with Docker/Kubernetes dependencies.
+
+RULE 3:
+Desired state and actual state must remain separate.
+
+RULE 4:
+Reconciliation must be idempotent.
+
+RULE 5:
+Workers execute; control plane decides.
+
+RULE 6:
+Scheduling decisions must initially be deterministic and explainable.
+
+RULE 7:
+Runtime must remain abstracted.
+
+RULE 8:
+State persistence must remain behind repository interfaces.
+
+RULE 9:
+Services and jobs should share the same scheduling/execution
+infrastructure where possible.
+
+RULE 10:
+Failure recovery is a first-class feature, not an afterthought.
+
+RULE 11:
+Observability must explain what CloudX is doing.
+
+RULE 12:
+CLI is a primary product interface.
+
+RULE 13:
+Do not introduce feature bloat merely to increase the feature count.
+
+RULE 14:
+Every major subsystem must have unit and integration coverage.
+
+RULE 15:
+No phase is complete until its acceptance criteria and tests pass.
+
+RULE 16:
+Do not silently change architectural boundaries during implementation.
+
+RULE 17:
+If a future feature requires a major architectural change, document
+the requirement before implementing it.
+
+RULE 18:
+v1.0.0 means a coherent private-cloud orchestration system, not a
+Kubernetes clone.
+
+======================================================================
+END OF PHASE ROADMAP
+======================================================================

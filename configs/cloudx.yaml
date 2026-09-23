@@ -1,0 +1,26 @@
+# Reference default CloudX configuration
+
+node:
+  id: local-node
+  name: local
+
+control_plane:
+  address: 127.0.0.1:7000
+
+worker:
+  address: 127.0.0.1:7001
+
+runtime:
+  type: native
+
+storage:
+  path: ~/.cloudx
+
+network:
+  default_network: default
+
+health:
+  heartbeat_interval: 5s
+
+logging:
+  level: info

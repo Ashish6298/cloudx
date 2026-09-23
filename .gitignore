@@ -1,0 +1,56 @@
+# Binaries and build outputs
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Local toolchains and dependencies
+.tools/
+vendor/
+
+# Test binaries and coverage reports
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# Database and runtime state
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+logs/
+.cloudx/
+
+# Environment files and credentials / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+secrets/
+token.txt
+bootstrap.token
+
+# IDE and Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Assistant and AI system artifacts
+.qodo/
+.system_generated/
+scratch/
