@@ -136,6 +136,6 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
 - [x] **Milestone 4: Worker Runtime** (Phases 12–15)
   - [x] **Phase 12**: Worker Daemon *([PHASE_12_COMPLETION_REPORT.md](./docs/reports/PHASE_12_COMPLETION_REPORT.md))*
   - [x] **Phase 13**: Runtime Interface *([PHASE_13_COMPLETION_REPORT.md](./docs/reports/PHASE_13_COMPLETION_REPORT.md))*
-  - [ ] **Phase 14**: Native Process Runtime
-  - [ ] **Phase 15**: Resource and Telemetry Collection
+  - [x] **Phase 14**: Native Process Runtime *([PHASE_14_COMPLETION_REPORT.md](./docs/reports/PHASE_14_COMPLETION_REPORT.md))*
+  - [ ] **Phase 15**: Task Manager & Telemetry Collection
 - [ ] **Milestones 5–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.

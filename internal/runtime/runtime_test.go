@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -169,6 +170,156 @@ func TestNativeRuntime_Restart(t *testing.T) {
 	}
 
 	_ = rt.Stop(context.Background(), taskID, 300*time.Millisecond)
+}
+
+func TestNativeRuntime_NonZeroExitCode(t *testing.T) {
+	rt := NewNativeRuntime()
+	defer rt.Close()
+
+	var cmd string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cmd = "powershell"
+		args = []string{"-NoProfile", "-Command", "exit 42"}
+	} else {
+		cmd = "sh"
+		args = []string{"-c", "exit 42"}
+	}
+
+	taskID := id.NewTaskID()
+	_, err := rt.Start(context.Background(), ProcessSpec{
+		ID:      taskID,
+		Command: cmd,
+		Args:    args,
+	})
+	if err != nil {
+		t.Fatalf("failed to start process: %v", err)
+	}
+
+	var finalStatus *ProcessStatus
+	for i := 0; i < 40; i++ {
+		time.Sleep(100 * time.Millisecond)
+		finalStatus, err = rt.Inspect(context.Background(), taskID)
+		if err == nil && !finalStatus.Running {
+			break
+		}
+	}
+
+	if finalStatus == nil || finalStatus.Running {
+		t.Fatalf("expected process to have exited")
+	}
+	if finalStatus.ExitCode != 42 {
+		t.Fatalf("expected exit code 42, got %d", finalStatus.ExitCode)
+	}
+}
+
+func TestNativeRuntime_EnvironmentInjection(t *testing.T) {
+	rt := NewNativeRuntime()
+	defer rt.Close()
+
+	var cmd string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cmd = "powershell"
+		args = []string{"-NoProfile", "-Command", "Write-Output $env:CUSTOM_KEY"}
+	} else {
+		cmd = "sh"
+		args = []string{"-c", "echo $CUSTOM_KEY"}
+	}
+
+	taskID := id.NewTaskID()
+	_, err := rt.Start(context.Background(), ProcessSpec{
+		ID:      taskID,
+		Command: cmd,
+		Args:    args,
+		Environment: map[string]string{
+			"CUSTOM_KEY": "CloudX_Runtime_Active_99",
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to start process: %v", err)
+	}
+
+	// Wait for exit
+	for i := 0; i < 40; i++ {
+		time.Sleep(100 * time.Millisecond)
+		st, err := rt.Inspect(context.Background(), taskID)
+		if err == nil && !st.Running {
+			break
+		}
+	}
+
+	logReader, err := rt.Logs(context.Background(), taskID, LogOptions{})
+	if err != nil {
+		t.Fatalf("failed to read logs: %v", err)
+	}
+	defer logReader.Close()
+
+	data, err := io.ReadAll(logReader)
+	if err != nil {
+		t.Fatalf("failed to read log stream: %v", err)
+	}
+
+	if !strings.Contains(string(data), "CloudX_Runtime_Active_99") {
+		t.Fatalf("expected injected env var in logs, got: %s", string(data))
+	}
+}
+
+func TestNativeRuntime_WorkingDirectory(t *testing.T) {
+	rt := NewNativeRuntime()
+	defer rt.Close()
+
+	tempDir := t.TempDir()
+	// Create marker file in temp directory
+	markerFile := filepath.Join(tempDir, "marker.txt")
+	if err := os.WriteFile(markerFile, []byte("ok"), 0644); err != nil {
+		t.Fatalf("failed to create marker file: %v", err)
+	}
+
+	var cmd string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cmd = "powershell"
+		args = []string{"-NoProfile", "-Command", "Get-ChildItem -Name"}
+	} else {
+		cmd = "sh"
+		args = []string{"-c", "ls"}
+	}
+
+	taskID := id.NewTaskID()
+	_, err := rt.Start(context.Background(), ProcessSpec{
+		ID:         taskID,
+		Command:    cmd,
+		Args:       args,
+		WorkingDir: tempDir,
+	})
+	if err != nil {
+		t.Fatalf("failed to start process: %v", err)
+	}
+
+	// Wait for exit
+	for i := 0; i < 40; i++ {
+		time.Sleep(100 * time.Millisecond)
+		st, err := rt.Inspect(context.Background(), taskID)
+		if err == nil && !st.Running {
+			break
+		}
+	}
+
+	logReader, err := rt.Logs(context.Background(), taskID, LogOptions{})
+	if err != nil {
+		t.Fatalf("failed to read logs: %v", err)
+	}
+	defer logReader.Close()
+
+	data, err := io.ReadAll(logReader)
+	if err != nil {
+		t.Fatalf("failed to read log stream: %v", err)
+	}
+
+	if !strings.Contains(string(data), "marker.txt") {
+		t.Fatalf("expected working directory contents in logs, got: %s", string(data))
+	}
 }
 
 func TestNativeRuntime_ErrorsAndNotFound(t *testing.T) {
