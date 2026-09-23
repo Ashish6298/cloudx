@@ -1,0 +1,233 @@
+syntax = "proto3";
+
+package cloudx.v1;
+
+option go_package = "github.com/cloudx-org/cloudx/proto/v1;v1";
+
+// --- Core Entity Definitions ---
+
+message Node {
+  string id = 1;
+  string name = 2;
+  string address = 3;
+  string status = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
+message Worker {
+  string id = 1;
+  string node_id = 2;
+  string address = 3;
+  string status = 4;
+  int64 last_heartbeat = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+}
+
+message Service {
+  string id = 1;
+  string name = 2;
+  int32 replicas = 3;
+  string runtime = 4;
+  string command = 5;
+  string status = 6;
+  string spec_json = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+
+message Deployment {
+  string id = 1;
+  string service_id = 2;
+  string version = 3;
+  string status = 4;
+  string spec_json = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+}
+
+message Task {
+  string id = 1;
+  string service_id = 2;
+  string job_id = 3;
+  string deployment_id = 4;
+  string worker_id = 5;
+  string state = 6;
+  int32 pid = 7;
+  int32 exit_code = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+message Job {
+  string id = 1;
+  string name = 2;
+  string command = 3;
+  string status = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
+message Volume {
+  string id = 1;
+  string name = 2;
+  string worker_id = 3;
+  string path = 4;
+  string driver = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+}
+
+message Network {
+  string id = 1;
+  string name = 2;
+  string subnet = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+}
+
+message Event {
+  string id = 1;
+  string type = 2;
+  string source = 3;
+  string entity_id = 4;
+  string payload = 5;
+  int64 created_at = 6;
+}
+
+message HealthReport {
+  string entity_id = 1;
+  string status = 2;
+  string message = 3;
+  int64 timestamp = 4;
+}
+
+// --- RPC Request & Response Messages ---
+
+message RegisterWorkerRequest {
+  string node_id = 1;
+  string worker_id = 2;
+  string address = 3;
+  map<string, string> metadata = 4;
+}
+
+message RegisterWorkerResponse {
+  bool accepted = 1;
+  string message = 2;
+  int64 registered_at = 3;
+}
+
+message HeartbeatRequest {
+  string worker_id = 1;
+  int64 timestamp = 2;
+  double cpu_usage = 3;
+  int64 memory_used = 4;
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+  int64 next_interval_ms = 2;
+}
+
+message GetWorkerRequest {
+  string worker_id = 1;
+}
+
+message GetWorkerResponse {
+  Worker worker = 1;
+}
+
+message ListWorkersRequest {}
+
+message ListWorkersResponse {
+  repeated Worker workers = 1;
+}
+
+message TaskAssignmentRequest {
+  string worker_id = 1;
+  Task task = 2;
+  string command = 3;
+  repeated string args = 4;
+  map<string, string> environment = 5;
+  string spec_json = 6;
+}
+
+message TaskAssignmentResponse {
+  string task_id = 1;
+  bool accepted = 2;
+  string message = 3;
+}
+
+message ReportTaskStatusRequest {
+  string worker_id = 1;
+  string task_id = 2;
+  string state = 3;
+  int32 pid = 4;
+  int32 exit_code = 5;
+  string message = 6;
+  int64 timestamp = 7;
+}
+
+message ReportTaskStatusResponse {
+  bool acknowledged = 1;
+}
+
+message ReportHealthRequest {
+  HealthReport report = 1;
+}
+
+message ReportHealthResponse {
+  bool acknowledged = 1;
+}
+
+message LogStreamRequest {
+  string task_id = 1;
+  string service_id = 2;
+  bool follow = 3;
+  int32 tail_lines = 4;
+}
+
+message LogChunk {
+  string task_id = 1;
+  string stream = 2; // "stdout" or "stderr"
+  bytes data = 3;
+  int64 timestamp = 4;
+}
+
+message ReportEventRequest {
+  Event event = 1;
+}
+
+message ReportEventResponse {
+  bool acknowledged = 1;
+}
+
+// --- CloudX Control Plane Service Contract ---
+
+service ControlPlaneService {
+  // WorkerRegistration
+  rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse);
+
+  // Heartbeat
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Worker Queries
+  rpc GetWorker(GetWorkerRequest) returns (GetWorkerResponse);
+  rpc ListWorkers(ListWorkersRequest) returns (ListWorkersResponse);
+
+  // TaskAssignment
+  rpc AssignTask(TaskAssignmentRequest) returns (TaskAssignmentResponse);
+
+  // TaskStatus
+  rpc ReportTaskStatus(ReportTaskStatusRequest) returns (ReportTaskStatusResponse);
+
+  // HealthReport
+  rpc ReportHealth(ReportHealthRequest) returns (ReportHealthResponse);
+
+  // LogStreaming
+  rpc StreamLogs(LogStreamRequest) returns (stream LogChunk);
+
+  // EventReporting
+  rpc ReportEvent(ReportEventRequest) returns (ReportEventResponse);
+}

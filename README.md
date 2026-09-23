@@ -129,5 +129,9 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 6**: Desired State Model *([PHASE_6_COMPLETION_REPORT.md](./docs/reports/PHASE_6_COMPLETION_REPORT.md))*
   - [x] **Phase 7**: Actual State Model *([PHASE_7_COMPLETION_REPORT.md](./docs/reports/PHASE_7_COMPLETION_REPORT.md))*
   - [x] **Phase 8**: State Transitions *([PHASE_8_COMPLETION_REPORT.md](./docs/reports/PHASE_8_COMPLETION_REPORT.md))*
-- [ ] **Milestone 3: Control Plane** (Phases 9–11)
+- [x] **Milestone 3: Control Plane** (Phases 9–11)
+  - [x] **Phase 9**: Control Plane Core *([PHASE_9_COMPLETION_REPORT.md](./docs/reports/PHASE_9_COMPLETION_REPORT.md))*
+  - [x] **Phase 10**: Protobuf Definitions *([PHASE_10_COMPLETION_REPORT.md](./docs/reports/PHASE_10_COMPLETION_REPORT.md))*
+  - [x] **Phase 11**: gRPC Control Plane API *([PHASE_11_COMPLETION_REPORT.md](./docs/reports/PHASE_11_COMPLETION_REPORT.md))*
+- [ ] **Milestone 4: Worker Runtime** (Phases 12–15)
 - [ ] **Milestones 5–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.

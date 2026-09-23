@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/common/version"
 	"github.com/cloudx-org/cloudx/internal/config"
+	"github.com/cloudx-org/cloudx/internal/controlplane"
+	"github.com/cloudx-org/cloudx/internal/state/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +36,7 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 
 	cmd.AddCommand(newVersionCmd())
 	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newServerCmd())
 	return cmd
 }
 
@@ -115,6 +122,47 @@ func newConfigValidateCmd() *cobra.Command {
 			fmt.Fprintf(out, "Configuration is valid.\n")
 			_ = cfg
 			return nil
+		},
+	}
+	return cmd
+}
+
+func newServerCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "server",
+		Short: "Start the CloudX Control Plane daemon",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			logger := logging.New(logging.ParseLevel(cfg.Logging.Level), logging.FormatText)
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			dbPath := fmt.Sprintf("%s/cloudx.db", cfg.Storage.Path)
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to initialize sqlite state store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logger,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			if err := cp.Start(ctx); err != nil {
+				return err
+			}
+
+			<-ctx.Done()
+			return cp.Stop(context.Background())
 		},
 	}
 	return cmd
