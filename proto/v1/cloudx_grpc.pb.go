@@ -21,6 +21,8 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	ControlPlaneService_RegisterWorker_FullMethodName   = "/cloudx.v1.ControlPlaneService/RegisterWorker"
 	ControlPlaneService_Heartbeat_FullMethodName        = "/cloudx.v1.ControlPlaneService/Heartbeat"
+	ControlPlaneService_GetWorker_FullMethodName        = "/cloudx.v1.ControlPlaneService/GetWorker"
+	ControlPlaneService_ListWorkers_FullMethodName      = "/cloudx.v1.ControlPlaneService/ListWorkers"
 	ControlPlaneService_AssignTask_FullMethodName       = "/cloudx.v1.ControlPlaneService/AssignTask"
 	ControlPlaneService_ReportTaskStatus_FullMethodName = "/cloudx.v1.ControlPlaneService/ReportTaskStatus"
 	ControlPlaneService_ReportHealth_FullMethodName     = "/cloudx.v1.ControlPlaneService/ReportHealth"
@@ -36,6 +38,9 @@ type ControlPlaneServiceClient interface {
 	RegisterWorker(ctx context.Context, in *RegisterWorkerRequest, opts ...grpc.CallOption) (*RegisterWorkerResponse, error)
 	// Heartbeat
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
+	// Worker Queries
+	GetWorker(ctx context.Context, in *GetWorkerRequest, opts ...grpc.CallOption) (*GetWorkerResponse, error)
+	ListWorkers(ctx context.Context, in *ListWorkersRequest, opts ...grpc.CallOption) (*ListWorkersResponse, error)
 	// TaskAssignment
 	AssignTask(ctx context.Context, in *TaskAssignmentRequest, opts ...grpc.CallOption) (*TaskAssignmentResponse, error)
 	// TaskStatus
@@ -68,6 +73,24 @@ func (c *controlPlaneServiceClient) RegisterWorker(ctx context.Context, in *Regi
 func (c *controlPlaneServiceClient) Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error) {
 	out := new(HeartbeatResponse)
 	err := c.cc.Invoke(ctx, ControlPlaneService_Heartbeat_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) GetWorker(ctx context.Context, in *GetWorkerRequest, opts ...grpc.CallOption) (*GetWorkerResponse, error) {
+	out := new(GetWorkerResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_GetWorker_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *controlPlaneServiceClient) ListWorkers(ctx context.Context, in *ListWorkersRequest, opts ...grpc.CallOption) (*ListWorkersResponse, error) {
+	out := new(ListWorkersResponse)
+	err := c.cc.Invoke(ctx, ControlPlaneService_ListWorkers_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +173,9 @@ type ControlPlaneServiceServer interface {
 	RegisterWorker(context.Context, *RegisterWorkerRequest) (*RegisterWorkerResponse, error)
 	// Heartbeat
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
+	// Worker Queries
+	GetWorker(context.Context, *GetWorkerRequest) (*GetWorkerResponse, error)
+	ListWorkers(context.Context, *ListWorkersRequest) (*ListWorkersResponse, error)
 	// TaskAssignment
 	AssignTask(context.Context, *TaskAssignmentRequest) (*TaskAssignmentResponse, error)
 	// TaskStatus
@@ -172,6 +198,12 @@ func (UnimplementedControlPlaneServiceServer) RegisterWorker(context.Context, *R
 }
 func (UnimplementedControlPlaneServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) GetWorker(context.Context, *GetWorkerRequest) (*GetWorkerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetWorker not implemented")
+}
+func (UnimplementedControlPlaneServiceServer) ListWorkers(context.Context, *ListWorkersRequest) (*ListWorkersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListWorkers not implemented")
 }
 func (UnimplementedControlPlaneServiceServer) AssignTask(context.Context, *TaskAssignmentRequest) (*TaskAssignmentResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AssignTask not implemented")
@@ -233,6 +265,42 @@ func _ControlPlaneService_Heartbeat_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ControlPlaneServiceServer).Heartbeat(ctx, req.(*HeartbeatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_GetWorker_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetWorkerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).GetWorker(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_GetWorker_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).GetWorker(ctx, req.(*GetWorkerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ControlPlaneService_ListWorkers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListWorkersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ControlPlaneServiceServer).ListWorkers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ControlPlaneService_ListWorkers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ControlPlaneServiceServer).ListWorkers(ctx, req.(*ListWorkersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -344,6 +412,14 @@ var ControlPlaneService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Heartbeat",
 			Handler:    _ControlPlaneService_Heartbeat_Handler,
+		},
+		{
+			MethodName: "GetWorker",
+			Handler:    _ControlPlaneService_GetWorker_Handler,
+		},
+		{
+			MethodName: "ListWorkers",
+			Handler:    _ControlPlaneService_ListWorkers_Handler,
 		},
 		{
 			MethodName: "AssignTask",

@@ -130,6 +130,20 @@ message HeartbeatResponse {
   int64 next_interval_ms = 2;
 }
 
+message GetWorkerRequest {
+  string worker_id = 1;
+}
+
+message GetWorkerResponse {
+  Worker worker = 1;
+}
+
+message ListWorkersRequest {}
+
+message ListWorkersResponse {
+  repeated Worker workers = 1;
+}
+
 message TaskAssignmentRequest {
   string worker_id = 1;
   Task task = 2;
@@ -197,6 +211,10 @@ service ControlPlaneService {
 
   // Heartbeat
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Worker Queries
+  rpc GetWorker(GetWorkerRequest) returns (GetWorkerResponse);
+  rpc ListWorkers(ListWorkersRequest) returns (ListWorkersResponse);
 
   // TaskAssignment
   rpc AssignTask(TaskAssignmentRequest) returns (TaskAssignmentResponse);
