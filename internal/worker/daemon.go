@@ -10,6 +10,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
 	"github.com/cloudx-org/cloudx/internal/runtime"
+	"github.com/cloudx-org/cloudx/internal/worker/monitor"
 	v1 "github.com/cloudx-org/cloudx/proto/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -29,9 +30,10 @@ const (
 
 // Options specifies configuration and dependencies for the Daemon.
 type Options struct {
-	Config  *config.Config
-	Logger  logging.Logger
-	Runtime runtime.Runtime
+	Config    *config.Config
+	Logger    logging.Logger
+	Runtime   runtime.Runtime
+	Collector monitor.Collector
 }
 
 // Daemon represents the machine-level CloudX execution agent.
@@ -41,6 +43,7 @@ type Daemon struct {
 	logger       logging.Logger
 	runtime      runtime.Runtime
 	taskManager  *TaskManager
+	collector    monitor.Collector
 	id           id.ID
 	status       Status
 	cancel       context.CancelFunc
@@ -64,6 +67,9 @@ func NewDaemon(opts Options) (*Daemon, error) {
 	if opts.Runtime == nil {
 		opts.Runtime = runtime.NewNativeRuntime()
 	}
+	if opts.Collector == nil {
+		opts.Collector = monitor.NewPlatformCollector()
+	}
 
 	idMgr := NewIdentityManager(opts.Config.Storage.Path)
 	workerID, err := idMgr.GetOrCreateIdentity("")
@@ -75,6 +81,7 @@ func NewDaemon(opts Options) (*Daemon, error) {
 		cfg:          opts.Config,
 		logger:       opts.Logger.WithWorker(workerID.String()),
 		runtime:      opts.Runtime,
+		collector:    opts.Collector,
 		id:           workerID,
 		status:       StatusStarting,
 		heartbeatDur: opts.Config.Health.HeartbeatInterval,
@@ -201,10 +208,20 @@ func (d *Daemon) heartbeatLoop(ctx context.Context) {
 func (d *Daemon) sendHeartbeat(ctx context.Context) {
 	d.mu.RLock()
 	client := d.cpClient
+	collector := d.collector
 	d.mu.RUnlock()
 
 	if client == nil {
 		return
+	}
+
+	var cpuUsage float64
+	var memUsed int64
+	if collector != nil {
+		if m, err := collector.Collect(ctx); err == nil && m != nil {
+			cpuUsage = m.CPUUsagePercent
+			memUsed = m.MemoryUsedBytes
+		}
 	}
 
 	hbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -213,8 +230,8 @@ func (d *Daemon) sendHeartbeat(ctx context.Context) {
 	_, err := client.Heartbeat(hbCtx, &v1.HeartbeatRequest{
 		WorkerId:   d.id.String(),
 		Timestamp:  time.Now().UTC().UnixNano(),
-		CpuUsage:   0.0,
-		MemoryUsed: 0,
+		CpuUsage:   cpuUsage,
+		MemoryUsed: memUsed,
 	})
 
 	if err != nil {
