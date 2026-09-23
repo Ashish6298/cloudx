@@ -26,7 +26,6 @@ type Store struct {
 func Open(ctx context.Context, dbPath string) (*Store, error) {
 	var dsn string
 	if dbPath == "" || dbPath == ":memory:" {
-		// Use shared cache URI for in-memory databases so multiple connections share the schema
 		dsn = "file:cloudx_mem?mode=memory&cache=shared&_pragma=foreign_keys(ON)"
 	} else {
 		dir := filepath.Dir(dbPath)
@@ -41,7 +40,6 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
-	// Ensure SQLite handles concurrent connections gracefully
 	db.SetMaxOpenConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
@@ -101,6 +99,10 @@ func (s *Store) Networks() state.NetworkRepository {
 
 func (s *Store) Events() state.EventRepository {
 	return &eventRepo{exec: s.exec}
+}
+
+func (s *Store) DesiredState() state.DesiredStateStore {
+	return &desiredStateRepo{exec: s.exec}
 }
 
 func (s *Store) Transaction(ctx context.Context, fn func(tx state.Store) error) error {

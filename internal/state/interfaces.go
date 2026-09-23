@@ -18,12 +18,23 @@ type Store interface {
 	Volumes() VolumeRepository
 	Networks() NetworkRepository
 	Events() EventRepository
+	DesiredState() DesiredStateStore
 
 	// Transaction executes a function within a database transaction.
 	Transaction(ctx context.Context, fn func(tx Store) error) error
 
 	// Close shuts down the state store cleanly.
 	Close() error
+}
+
+// DesiredStateStore manages persistence of ServiceDesiredState.
+type DesiredStateStore interface {
+	Create(ctx context.Context, state *models.ServiceDesiredState) error
+	Get(ctx context.Context, id id.ID) (*models.ServiceDesiredState, error)
+	GetByName(ctx context.Context, name string) (*models.ServiceDesiredState, error)
+	List(ctx context.Context) ([]*models.ServiceDesiredState, error)
+	Update(ctx context.Context, state *models.ServiceDesiredState) error
+	Delete(ctx context.Context, id id.ID) error
 }
 
 // NodeRepository handles Node persistence.

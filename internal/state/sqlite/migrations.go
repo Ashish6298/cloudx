@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS services (
     updated_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS desired_states (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    version TEXT NOT NULL,
+    replicas INTEGER NOT NULL DEFAULT 1,
+    runtime TEXT NOT NULL DEFAULT 'native',
+    command TEXT NOT NULL,
+    spec_json TEXT NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS deployments (
     id TEXT PRIMARY KEY,
     service_id TEXT NOT NULL,
@@ -109,6 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_deployments_service ON deployments(service_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_service ON tasks(service_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_worker ON tasks(worker_id);
 CREATE INDEX IF NOT EXISTS idx_events_entity ON events(entity_id);
+CREATE INDEX IF NOT EXISTS idx_desired_states_name ON desired_states(name);
 `
 
 // Migrate runs initial database migrations.
