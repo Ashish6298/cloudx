@@ -133,5 +133,9 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 9**: Control Plane Core *([PHASE_9_COMPLETION_REPORT.md](./docs/reports/PHASE_9_COMPLETION_REPORT.md))*
   - [x] **Phase 10**: Protobuf Definitions *([PHASE_10_COMPLETION_REPORT.md](./docs/reports/PHASE_10_COMPLETION_REPORT.md))*
   - [x] **Phase 11**: gRPC Control Plane API *([PHASE_11_COMPLETION_REPORT.md](./docs/reports/PHASE_11_COMPLETION_REPORT.md))*
-- [ ] **Milestone 4: Worker Runtime** (Phases 12–15)
+- [x] **Milestone 4: Worker Runtime** (Phases 12–15)
+  - [x] **Phase 12**: Worker Daemon *([PHASE_12_COMPLETION_REPORT.md](./docs/reports/PHASE_12_COMPLETION_REPORT.md))*
+  - [ ] **Phase 13**: Native Process Runtime
+  - [ ] **Phase 14**: Task Execution Engine
+  - [ ] **Phase 15**: Resource and Telemetry Collection
 - [ ] **Milestones 5–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
