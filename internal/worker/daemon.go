@@ -40,6 +40,7 @@ type Daemon struct {
 	cfg          *config.Config
 	logger       logging.Logger
 	runtime      runtime.Runtime
+	taskManager  *TaskManager
 	id           id.ID
 	status       Status
 	cancel       context.CancelFunc
@@ -80,12 +81,37 @@ func NewDaemon(opts Options) (*Daemon, error) {
 		tasks:        make(map[string]*v1.Task),
 	}
 
+	d.taskManager = NewTaskManager(TaskManagerOptions{
+		WorkerID: workerID,
+		Runtime:  opts.Runtime,
+		Reporter: d,
+		Logger:   d.logger,
+	})
+
 	return d, nil
 }
 
 // ID returns the stable worker ID.
 func (d *Daemon) ID() id.ID {
 	return d.id
+}
+
+// TaskManager returns the worker task manager.
+func (d *Daemon) TaskManager() *TaskManager {
+	return d.taskManager
+}
+
+// ReportTaskStatus reports a task status update to the control plane.
+func (d *Daemon) ReportTaskStatus(ctx context.Context, req *v1.ReportTaskStatusRequest) (*v1.ReportTaskStatusResponse, error) {
+	d.mu.RLock()
+	client := d.cpClient
+	d.mu.RUnlock()
+
+	if client == nil {
+		return &v1.ReportTaskStatusResponse{Acknowledged: false}, nil
+	}
+
+	return client.ReportTaskStatus(ctx, req)
 }
 
 // Status returns the current lifecycle status of the worker.
@@ -205,6 +231,10 @@ func (d *Daemon) sendHeartbeat(ctx context.Context) {
 func (d *Daemon) Stop(ctx context.Context) error {
 	d.setStatus(StatusStopping)
 	d.logger.Info("Gracefully stopping Worker %s...", d.id)
+
+	if d.taskManager != nil {
+		_ = d.taskManager.Close()
+	}
 
 	d.mu.Lock()
 	if d.cancel != nil {
