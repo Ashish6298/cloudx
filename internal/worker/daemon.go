@@ -9,6 +9,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
+	"github.com/cloudx-org/cloudx/internal/runtime"
 	v1 "github.com/cloudx-org/cloudx/proto/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -28,8 +29,9 @@ const (
 
 // Options specifies configuration and dependencies for the Daemon.
 type Options struct {
-	Config *config.Config
-	Logger logging.Logger
+	Config  *config.Config
+	Logger  logging.Logger
+	Runtime runtime.Runtime
 }
 
 // Daemon represents the machine-level CloudX execution agent.
@@ -37,6 +39,7 @@ type Daemon struct {
 	mu           sync.RWMutex
 	cfg          *config.Config
 	logger       logging.Logger
+	runtime      runtime.Runtime
 	id           id.ID
 	status       Status
 	cancel       context.CancelFunc
@@ -57,6 +60,9 @@ func NewDaemon(opts Options) (*Daemon, error) {
 	if opts.Logger == nil {
 		opts.Logger = logging.NewDefaultLogger()
 	}
+	if opts.Runtime == nil {
+		opts.Runtime = runtime.NewNativeRuntime()
+	}
 
 	idMgr := NewIdentityManager(opts.Config.Storage.Path)
 	workerID, err := idMgr.GetOrCreateIdentity("")
@@ -67,6 +73,7 @@ func NewDaemon(opts Options) (*Daemon, error) {
 	d := &Daemon{
 		cfg:          opts.Config,
 		logger:       opts.Logger.WithWorker(workerID.String()),
+		runtime:      opts.Runtime,
 		id:           workerID,
 		status:       StatusStarting,
 		heartbeatDur: opts.Config.Health.HeartbeatInterval,
