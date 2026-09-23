@@ -125,6 +125,9 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 3**: Logging and Error Infrastructure *([PHASE_3_COMPLETION_REPORT.md](./docs/reports/PHASE_3_COMPLETION_REPORT.md))*
   - [x] **Phase 4**: Identity and Identifier System *([PHASE_4_COMPLETION_REPORT.md](./docs/reports/PHASE_4_COMPLETION_REPORT.md))*
 - [ ] **Milestone 2: State Engine** (Phases 5–8)
-- [ ] **Milestone 3: Control Plane** (Phases 9–11)
+  - [x] **Phase 5**: SQLite State Store *([PHASE_5_COMPLETION_REPORT.md](./docs/reports/PHASE_5_COMPLETION_REPORT.md))*
+  - [ ] **Phase 6**: Desired State Model
+  - [ ] **Phase 7**: Actual State Model
+  - [ ] **Phase 8**: State Transitions
 - [ ] **Milestone 4: Worker Runtime** (Phases 12–15)
 - [ ] **Milestones 5–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
