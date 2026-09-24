@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/cloudx-org/cloudx/internal/common/errors"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
+	"github.com/cloudx-org/cloudx/internal/health"
 	"github.com/cloudx-org/cloudx/internal/state"
 )
 
@@ -67,12 +69,35 @@ func (c *DeploymentManager) Start(ctx context.Context) error { return nil }
 func (c *DeploymentManager) Stop(ctx context.Context) error  { return nil }
 
 // HealthManager monitors worker heartbeats and task health probes.
-type HealthManager struct{}
+type HealthManager struct {
+	detector *health.FailureDetector
+}
 
-func NewHealthManager() *HealthManager           { return &HealthManager{} }
-func (c *HealthManager) Name() string            { return "HealthManager" }
-func (c *HealthManager) Start(ctx context.Context) error { return nil }
-func (c *HealthManager) Stop(ctx context.Context) error  { return nil }
+func NewHealthManager(store state.Store, logger logging.Logger, hbInterval time.Duration) *HealthManager {
+	detectorCfg := health.DefaultFailureDetectorConfig()
+	if hbInterval > 0 {
+		detectorCfg.SuspectedTimeout = 3 * hbInterval
+		detectorCfg.UnhealthyTimeout = 6 * hbInterval
+		detectorCfg.LostTimeout = 12 * hbInterval
+	}
+	return &HealthManager{
+		detector: health.NewFailureDetector(detectorCfg, store, logger),
+	}
+}
+
+func (c *HealthManager) Name() string { return "HealthManager" }
+func (c *HealthManager) Start(ctx context.Context) error {
+	if c.detector != nil {
+		return c.detector.Start(ctx)
+	}
+	return nil
+}
+func (c *HealthManager) Stop(ctx context.Context) error {
+	if c.detector != nil {
+		return c.detector.Stop(ctx)
+	}
+	return nil
+}
 
 // Reconciler runs the continuous desired-state convergence loop.
 type Reconciler struct{}
@@ -142,7 +167,7 @@ func New(opts Options) (*ControlPlane, error) {
 	registry := NewRegistry()
 	scheduler := NewScheduler()
 	depMgr := NewDeploymentManager()
-	healthMgr := NewHealthManager()
+	healthMgr := NewHealthManager(opts.Store, opts.Logger, opts.Config.Health.HeartbeatInterval)
 	reconciler := NewReconciler()
 	eventMgr := NewEventManager()
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/common/version"
@@ -32,8 +33,80 @@ supervises native processes, collects metrics/logs, and performs health checks.`
 	cmd.PersistentFlags().StringVar(&workerCLIOpts.LogLevel, "log-level", "", "Override Logging level (debug, info, warn, error)")
 
 	cmd.AddCommand(newStartCmd())
+	cmd.AddCommand(newJoinCmd())
+	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newVersionCmd())
 	cmd.AddCommand(newWorkerConfigCmd())
+	return cmd
+}
+
+func newJoinCmd() *cobra.Command {
+	var controlPlaneAddr string
+
+	cmd := &cobra.Command{
+		Use:   "join [CONTROL_PLANE_ADDRESS]",
+		Short: "Join an existing CloudX control plane cluster",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				controlPlaneAddr = args[0]
+			}
+			if controlPlaneAddr != "" {
+				workerCLIOpts.ControlPlaneAddr = controlPlaneAddr
+			}
+
+			cfg, err := config.Load(workerCLIOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "Joining CloudX Control Plane at %s...\n", cfg.ControlPlane.Address)
+
+			logger := logging.New(logging.ParseLevel(cfg.Logging.Level), logging.FormatText)
+			daemon, err := worker.NewDaemon(worker.Options{
+				Config: cfg,
+				Logger: logger,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize worker: %w", err)
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			if err := daemon.Start(ctx); err != nil {
+				return fmt.Errorf("failed to join cluster: %w", err)
+			}
+
+			fmt.Fprintf(out, "Successfully joined cluster %s! Worker ID: %s (Status: READY)\n", daemon.ClusterID(), daemon.ID())
+			return daemon.Stop(context.Background())
+		},
+	}
+
+	cmd.Flags().StringVar(&controlPlaneAddr, "control-plane", "", "Target control plane address (host:port)")
+	return cmd
+}
+
+func newStatusCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Inspect local worker status and tasks",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load(workerCLIOpts)
+			if err != nil {
+				return err
+			}
+
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "Worker Node ID:      %s\n", cfg.Node.ID)
+			fmt.Fprintf(out, "Worker Listen Addr:  %s\n", cfg.Worker.Address)
+			fmt.Fprintf(out, "Control Plane Addr:  %s\n", cfg.ControlPlane.Address)
+			fmt.Fprintf(out, "Runtime Engine:      %s\n", cfg.Runtime.Type)
+			fmt.Fprintf(out, "Heartbeat Interval:  %s\n", cfg.Health.HeartbeatInterval)
+			return nil
+		},
+	}
 	return cmd
 }
 

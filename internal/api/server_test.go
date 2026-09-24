@@ -191,20 +191,42 @@ func TestDuplicateWorkerRegistration(t *testing.T) {
 	ctx := context.Background()
 
 	req := &v1.RegisterWorkerRequest{
-		WorkerId: "worker-dup-1",
-		Address:  "127.0.0.1:7001",
+		WorkerId:            "worker-dup-1",
+		Hostname:            "node-1",
+		Address:             "127.0.0.1:7001",
+		CpuCapacity:         8.0,
+		MemoryCapacity:      16 * 1024 * 1024 * 1024,
+		RuntimeCapabilities: []string{"native"},
+		Version:             "0.1.0",
 	}
 
 	// First registration succeeds
-	_, err := client.RegisterWorker(ctx, req)
+	resp1, err := client.RegisterWorker(ctx, req)
 	if err != nil {
 		t.Fatalf("initial registration failed: %v", err)
 	}
+	if !resp1.Accepted || resp1.ClusterId == "" {
+		t.Fatalf("expected accepted registration with cluster_id, got %+v", resp1)
+	}
 
-	// Second registration with same ID fails with AlreadyExists
-	_, err = client.RegisterWorker(ctx, req)
+	// Safe re-registration with same worker ID and same address succeeds (e.g. worker reboot)
+	resp2, err := client.RegisterWorker(ctx, req)
+	if err != nil {
+		t.Fatalf("safe re-registration failed: %v", err)
+	}
+	if !resp2.Accepted {
+		t.Fatalf("expected re-registration accepted")
+	}
+
+	// Conflicting registration with same worker ID but DIFFERENT address fails with AlreadyExists
+	conflictingReq := &v1.RegisterWorkerRequest{
+		WorkerId: "worker-dup-1",
+		Hostname: "node-2",
+		Address:  "127.0.0.1:9999", // Different address!
+	}
+	_, err = client.RegisterWorker(ctx, conflictingReq)
 	if status.Code(err) != codes.AlreadyExists {
-		t.Errorf("expected AlreadyExists code on duplicate registration, got: %v", err)
+		t.Errorf("expected AlreadyExists code on conflicting address registration, got: %v", err)
 	}
 }
 

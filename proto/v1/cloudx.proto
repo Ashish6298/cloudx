@@ -108,14 +108,22 @@ message HealthReport {
 message RegisterWorkerRequest {
   string node_id = 1;
   string worker_id = 2;
-  string address = 3;
-  map<string, string> metadata = 4;
+  string hostname = 3;
+  string address = 4;
+  repeated string runtime_capabilities = 5;
+  double cpu_capacity = 6;
+  int64 memory_capacity = 7;
+  string version = 8;
+  map<string, string> metadata = 9;
 }
 
 message RegisterWorkerResponse {
   bool accepted = 1;
   string message = 2;
-  int64 registered_at = 3;
+  string cluster_id = 3;
+  int64 registered_at = 4;
+  int64 heartbeat_interval_ms = 5;
+  map<string, string> worker_config = 6;
 }
 
 message HeartbeatRequest {

@@ -139,5 +139,17 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 14**: Native Process Runtime *([PHASE_14_COMPLETION_REPORT.md](./docs/reports/PHASE_14_COMPLETION_REPORT.md))*
   - [x] **Phase 15**: Task Manager *([PHASE_15_COMPLETION_REPORT.md](./docs/reports/PHASE_15_COMPLETION_REPORT.md))*
   - [x] **Phase 16**: Resource Monitor *([PHASE_16_COMPLETION_REPORT.md](./docs/reports/PHASE_16_COMPLETION_REPORT.md))*
-- [ ] **Milestone 5: Worker Registration and Cluster** (Phases 17–20)
-- [ ] **Milestones 6–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+- [x] **Milestone 5: Worker Registration and Cluster** (Phases 17–19)
+  - [x] **Phase 17**: Worker Registration *([PHASE_17_COMPLETION_REPORT.md](./docs/reports/PHASE_17_COMPLETION_REPORT.md))*
+  - [x] **Phase 18**: Heartbeat and Failure Detection *([PHASE_18_COMPLETION_REPORT.md](./docs/reports/PHASE_18_COMPLETION_REPORT.md))*
+  - [x] **Phase 19**: Cluster Commands *([PHASE_19_COMPLETION_REPORT.md](./docs/reports/PHASE_19_COMPLETION_REPORT.md))*
+- [x] **Milestone 6: Scheduler** (Phases 20–22)
+  - [x] **Phase 20**: Scheduling Model *([PHASE_20_COMPLETION_REPORT.md](./docs/reports/PHASE_20_COMPLETION_REPORT.md))*
+  - [x] **Phase 21**: Basic Scheduler *([PHASE_21_COMPLETION_REPORT.md](./docs/reports/PHASE_21_COMPLETION_REPORT.md))*
+  - [x] **Phase 22**: Task Assignment *([PHASE_22_COMPLETION_REPORT.md](./docs/reports/PHASE_22_COMPLETION_REPORT.md))*
+- [ ] **Milestone 7: Services and Reconciliation** (Phases 23–27)
+  - [ ] **Phase 23**: Service Definition
+- [ ] **Milestones 8–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+
+
+
