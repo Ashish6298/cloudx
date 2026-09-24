@@ -282,6 +282,87 @@ func (s *Server) ListWorkers(ctx context.Context, req *v1.ListWorkersRequest) (*
 	return &v1.ListWorkersResponse{Workers: protoWorkers}, nil
 }
 
+func (s *Server) AssignTask(ctx context.Context, req *v1.TaskAssignmentRequest) (*v1.TaskAssignmentResponse, error) {
+	if strings.TrimSpace(req.WorkerId) == "" {
+		return nil, status.Error(codes.InvalidArgument, "worker_id is required")
+	}
+	if req.Task == nil || strings.TrimSpace(req.Task.Id) == "" {
+		return nil, status.Error(codes.InvalidArgument, "task and task.id are required")
+	}
+	if strings.TrimSpace(req.Command) == "" {
+		return nil, status.Error(codes.InvalidArgument, "command is required")
+	}
+
+	workerID := id.ID(req.WorkerId)
+	worker, err := s.store.Workers().Get(ctx, workerID)
+	if err != nil {
+		return &v1.TaskAssignmentResponse{
+			TaskId:   req.Task.Id,
+			Accepted: false,
+			Message:  fmt.Sprintf("worker %s not found: %v", req.WorkerId, err),
+		}, nil
+	}
+
+	if worker.Status != "READY" {
+		return &v1.TaskAssignmentResponse{
+			TaskId:   req.Task.Id,
+			Accepted: false,
+			Message:  fmt.Sprintf("worker %s is not READY (status: %s)", req.WorkerId, worker.Status),
+		}, nil
+	}
+
+	taskID := id.ID(req.Task.Id)
+	now := time.Now().UTC()
+
+	// Check if task already exists
+	existingTask, _ := s.store.Tasks().Get(ctx, taskID)
+	if existingTask != nil {
+		if existingTask.WorkerID == workerID && existingTask.State == string(models.TaskStateAssigned) {
+			// Idempotent retry
+			return &v1.TaskAssignmentResponse{
+				TaskId:   req.Task.Id,
+				Accepted: true,
+				Message:  "Task assignment already recorded",
+			}, nil
+		}
+		if existingTask.State != string(models.TaskStatePending) && existingTask.State != string(models.TaskStateAssigned) {
+			return &v1.TaskAssignmentResponse{
+				TaskId:   req.Task.Id,
+				Accepted: false,
+				Message:  fmt.Sprintf("task %s already in state %s", taskID, existingTask.State),
+			}, nil
+		}
+		// Update assignment
+		existingTask.WorkerID = workerID
+		existingTask.State = string(models.TaskStateAssigned)
+		existingTask.UpdatedAt = now
+		if err := s.store.Tasks().Update(ctx, existingTask); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to update task assignment: %v", err)
+		}
+	} else {
+		// Persist task in ASSIGNED state before transmission
+		task := &models.Task{
+			ID:           taskID,
+			ServiceID:    id.ID(req.Task.ServiceId),
+			JobID:        id.ID(req.Task.JobId),
+			DeploymentID: id.ID(req.Task.DeploymentId),
+			WorkerID:     workerID,
+			State:        string(models.TaskStateAssigned),
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		if err := s.store.Tasks().Create(ctx, task); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to persist task assignment: %v", err)
+		}
+	}
+
+	return &v1.TaskAssignmentResponse{
+		TaskId:   req.Task.Id,
+		Accepted: true,
+		Message:  "Task assignment successfully persisted and assigned",
+	}, nil
+}
+
 func (s *Server) ReportTaskStatus(ctx context.Context, req *v1.ReportTaskStatusRequest) (*v1.ReportTaskStatusResponse, error) {
 	if strings.TrimSpace(req.WorkerId) == "" || strings.TrimSpace(req.TaskId) == "" {
 		return nil, status.Error(codes.InvalidArgument, "worker_id and task_id must not be empty")
