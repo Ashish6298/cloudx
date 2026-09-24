@@ -131,12 +131,20 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 					RequiredRuntime: svcConfig.Runtime,
 				},
 				Spec: scheduler.TaskSpec{
-					Command:     svcConfig.Command,
-					Args:        svcConfig.Args,
-					Environment: svcConfig.Environment,
-					WorkingDir:  svcConfig.WorkingDir,
-					Runtime:     svcConfig.Runtime,
-					SpecJSON:    specJSON,
+					Command:       svcConfig.Command,
+					Args:          svcConfig.Args,
+					Environment:   svcConfig.Environment,
+					WorkingDir:    svcConfig.WorkingDir,
+					Runtime:       svcConfig.Runtime,
+					RestartPolicy: models.RestartPolicy{
+						Type: func() models.RestartPolicyType {
+							if svcConfig.RestartPolicy != nil {
+								return models.RestartPolicyType(svcConfig.RestartPolicy.Type)
+							}
+							return models.RestartPolicyAlways
+						}(),
+					},
+					SpecJSON: specJSON,
 				},
 			})
 			if err != nil {

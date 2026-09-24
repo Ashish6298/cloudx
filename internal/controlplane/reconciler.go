@@ -231,12 +231,20 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 						RequiredRuntime: svc.Runtime,
 					},
 					Spec: scheduler.TaskSpec{
-						Command:     svcConfig.Command,
-						Args:        svcConfig.Args,
-						Environment: svcConfig.Environment,
-						WorkingDir:  svcConfig.WorkingDir,
-						Runtime:     svc.Runtime,
-						SpecJSON:    svc.SpecJSON,
+						Command:       svcConfig.Command,
+						Args:          svcConfig.Args,
+						Environment:   svcConfig.Environment,
+						WorkingDir:    svcConfig.WorkingDir,
+						Runtime:       svc.Runtime,
+						RestartPolicy: models.RestartPolicy{
+							Type: func() models.RestartPolicyType {
+								if svcConfig.RestartPolicy != nil {
+									return models.RestartPolicyType(svcConfig.RestartPolicy.Type)
+								}
+								return models.RestartPolicyAlways
+							}(),
+						},
+						SpecJSON: svc.SpecJSON,
 					},
 				})
 				if err != nil {

@@ -269,3 +269,145 @@ func TestTaskManager_InvalidSpecsAndNotFound(t *testing.T) {
 		t.Fatalf("expected ErrTaskNotFound on stop, got %v", err)
 	}
 }
+
+func TestTaskManager_RestartPolicy_Never(t *testing.T) {
+	tm := NewTaskManager(TaskManagerOptions{
+		WorkerID: id.NewWorkerID(),
+		Runtime:  run.NewNativeRuntime(),
+		Logger:   logging.NewDefaultLogger(),
+	})
+	defer tm.Close()
+
+	var cmd string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cmd = "powershell"
+		args = []string{"-NoProfile", "-Command", "exit 1"}
+	} else {
+		cmd = "sh"
+		args = []string{"-c", "exit 1"}
+	}
+
+	taskID := id.NewTaskID()
+	err := tm.AssignTask(context.Background(), TaskAssignment{
+		TaskID:  taskID,
+		Command: cmd,
+		Args:    args,
+		RestartPolicy: models.RestartPolicy{
+			Type: models.RestartPolicyNever,
+		},
+	})
+	if err != nil {
+		t.Fatalf("assign failed: %v", err)
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	st, err := tm.GetTask(taskID)
+	if err != nil {
+		t.Fatalf("failed to get task: %v", err)
+	}
+
+	// Never restart -> stays FAILED
+	if st.State != models.TaskStateFailed {
+		t.Fatalf("expected state FAILED for policy 'never', got %s", st.State)
+	}
+	if st.RestartCount != 0 {
+		t.Fatalf("expected 0 restarts for policy 'never', got %d", st.RestartCount)
+	}
+}
+
+func TestTaskManager_RestartPolicy_OnFailure_And_CrashLoop(t *testing.T) {
+	tm := NewTaskManager(TaskManagerOptions{
+		WorkerID: id.NewWorkerID(),
+		Runtime:  run.NewNativeRuntime(),
+		Logger:   logging.NewDefaultLogger(),
+	})
+	defer tm.Close()
+
+	var cmd string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cmd = "powershell"
+		args = []string{"-NoProfile", "-Command", "exit 1"}
+	} else {
+		cmd = "sh"
+		args = []string{"-c", "exit 1"}
+	}
+
+	taskID := id.NewTaskID()
+	err := tm.AssignTask(context.Background(), TaskAssignment{
+		TaskID:  taskID,
+		Command: cmd,
+		Args:    args,
+		RestartPolicy: models.RestartPolicy{
+			Type:          models.RestartPolicyOnFailure,
+			MaxRetries:    2,
+			BackoffPeriod: 50 * time.Millisecond,
+		},
+	})
+	if err != nil {
+		t.Fatalf("assign failed: %v", err)
+	}
+
+	// Poll until CRASH_LOOP entered after exceeding max retries (2)
+	var finalState models.TaskState
+	for i := 0; i < 40; i++ {
+		time.Sleep(100 * time.Millisecond)
+		st, _ := tm.GetTask(taskID)
+		if st != nil {
+			finalState = st.State
+			if st.State == models.TaskStateCrashLoop {
+				break
+			}
+		}
+	}
+
+	if finalState != models.TaskStateCrashLoop {
+		t.Fatalf("expected state CRASH_LOOP after repeated failures, got %s", finalState)
+	}
+}
+
+func TestTaskManager_RestartPolicy_Always_CleanExit(t *testing.T) {
+	tm := NewTaskManager(TaskManagerOptions{
+		WorkerID: id.NewWorkerID(),
+		Runtime:  run.NewNativeRuntime(),
+		Logger:   logging.NewDefaultLogger(),
+	})
+	defer tm.Close()
+
+	var cmd string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cmd = "powershell"
+		args = []string{"-NoProfile", "-Command", "exit 0"}
+	} else {
+		cmd = "sh"
+		args = []string{"-c", "exit 0"}
+	}
+
+	taskID := id.NewTaskID()
+	err := tm.AssignTask(context.Background(), TaskAssignment{
+		TaskID:  taskID,
+		Command: cmd,
+		Args:    args,
+		RestartPolicy: models.RestartPolicy{
+			Type:          models.RestartPolicyAlways,
+			MaxRetries:    3,
+			BackoffPeriod: 50 * time.Millisecond,
+		},
+	})
+	if err != nil {
+		t.Fatalf("assign failed: %v", err)
+	}
+
+	// Clean exits with always restart policy trigger restarts
+	time.Sleep(250 * time.Millisecond)
+	st, err := tm.GetTask(taskID)
+	if err != nil {
+		t.Fatalf("failed to get task: %v", err)
+	}
+	if st.RestartCount < 1 {
+		t.Fatalf("expected at least 1 restart for 'always' restart policy, got %d", st.RestartCount)
+	}
+}
+

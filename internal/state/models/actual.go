@@ -10,16 +10,19 @@ import (
 type TaskState string
 
 const (
-	TaskStatePending   TaskState = "PENDING"
-	TaskStateAssigned  TaskState = "ASSIGNED"
-	TaskStateStarting  TaskState = "STARTING"
-	TaskStateRunning   TaskState = "RUNNING"
-	TaskStateHealthy   TaskState = "HEALTHY"
-	TaskStateUnhealthy TaskState = "UNHEALTHY"
-	TaskStateStopping  TaskState = "STOPPING"
-	TaskStateStopped   TaskState = "STOPPED"
-	TaskStateFailed    TaskState = "FAILED"
-	TaskStateLost      TaskState = "LOST"
+	TaskStatePending    TaskState = "PENDING"
+	TaskStateAssigned   TaskState = "ASSIGNED"
+	TaskStateStarting   TaskState = "STARTING"
+	TaskStateRunning    TaskState = "RUNNING"
+	TaskStateHealthy    TaskState = "HEALTHY"
+	TaskStateUnhealthy  TaskState = "UNHEALTHY"
+	TaskStateStopping   TaskState = "STOPPING"
+	TaskStateStopped    TaskState = "STOPPED"
+	TaskStateFailed     TaskState = "FAILED"
+	TaskStateBackoff    TaskState = "BACKOFF"
+	TaskStateRestarting TaskState = "RESTARTING"
+	TaskStateCrashLoop  TaskState = "CRASH_LOOP"
+	TaskStateLost       TaskState = "LOST"
 )
 
 // ServiceActualStatus defines the high-level derived status of a service.

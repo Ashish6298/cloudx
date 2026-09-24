@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,36 +24,41 @@ var (
 
 // TaskAssignment contains the parameters required to accept and execute a task workload.
 type TaskAssignment struct {
-	TaskID      id.ID             `json:"task_id"`
-	ServiceID   id.ID             `json:"service_id,omitempty"`
-	Command     string            `json:"command"`
-	Args        []string          `json:"args,omitempty"`
-	Environment map[string]string `json:"environment,omitempty"`
-	WorkingDir  string            `json:"working_dir,omitempty"`
+	TaskID        id.ID                `json:"task_id"`
+	ServiceID     id.ID                `json:"service_id,omitempty"`
+	Command       string               `json:"command"`
+	Args          []string             `json:"args,omitempty"`
+	Environment   map[string]string    `json:"environment,omitempty"`
+	WorkingDir    string               `json:"working_dir,omitempty"`
+	RestartPolicy models.RestartPolicy `json:"restart_policy,omitempty"`
 }
 
 // ManagedTask holds the execution lifecycle and status of a worker task.
 type ManagedTask struct {
-	mu          sync.RWMutex
-	Assignment  TaskAssignment
-	State       models.TaskState
-	PID         int
-	ExitCode    int
-	StartTime   time.Time
-	StopTime    time.Time
-	ErrorMsg    string
-	cancel      context.CancelFunc
+	mu             sync.RWMutex
+	Assignment     TaskAssignment
+	State          models.TaskState
+	PID            int
+	ExitCode       int
+	StartTime      time.Time
+	StopTime       time.Time
+	ErrorMsg       string
+	RestartCount   int
+	LastRestart    time.Time
+	CurrentBackoff time.Duration
+	cancel         context.CancelFunc
 }
 
 // TaskStatusSnapshot represents an immutable view of a task's state.
 type TaskStatusSnapshot struct {
-	TaskID    id.ID            `json:"task_id"`
-	State     models.TaskState `json:"state"`
-	PID       int              `json:"pid"`
-	ExitCode  int              `json:"exit_code"`
-	StartTime time.Time        `json:"start_time"`
-	Duration  time.Duration    `json:"duration"`
-	Error     string           `json:"error,omitempty"`
+	TaskID       id.ID            `json:"task_id"`
+	State        models.TaskState `json:"state"`
+	PID          int              `json:"pid"`
+	ExitCode     int              `json:"exit_code"`
+	StartTime    time.Time        `json:"start_time"`
+	Duration     time.Duration    `json:"duration"`
+	Error        string           `json:"error,omitempty"`
+	RestartCount int              `json:"restart_count"`
 }
 
 // StateReporter defines the interface for reporting task status updates back to the control plane.
@@ -254,15 +260,92 @@ func (tm *TaskManager) superviseTask(ctx context.Context, task *ManagedTask) {
 				task.mu.Unlock()
 
 				if status.ExitCode == 0 {
-					_ = tm.transitionTask(context.Background(), task, models.TaskStateStopped)
+					// Clean exit
+					policy := strings.ToLower(string(task.Assignment.RestartPolicy.Type))
+					if policy == "always" {
+						tm.handleTaskRestart(ctx, task, false)
+					} else {
+						_ = tm.transitionTask(context.Background(), task, models.TaskStateStopped)
+					}
 				} else {
-					// Non-zero exit code or crash -> FAILED
+					// Non-zero exit code or process crash -> FAILED
 					_ = tm.transitionTask(context.Background(), task, models.TaskStateFailed)
+
+					policy := strings.ToLower(string(task.Assignment.RestartPolicy.Type))
+					if policy == "always" || policy == "on-failure" {
+						tm.handleTaskRestart(ctx, task, true)
+					}
 				}
 				return
 			}
 		}
 	}
+}
+
+// handleTaskRestart applies restart policy, computes exponential backoff, prevents rapid restart loops,
+// and triggers task relaunch or transitions to CRASH_LOOP.
+func (tm *TaskManager) handleTaskRestart(ctx context.Context, task *ManagedTask, isFailure bool) {
+	task.mu.Lock()
+	maxRetries := task.Assignment.RestartPolicy.MaxRetries
+	if maxRetries <= 0 {
+		maxRetries = 5 // Default max retries before declaring CRASH_LOOP
+	}
+
+	task.RestartCount++
+	currentRetries := task.RestartCount
+	lastRestart := task.LastRestart
+
+	// Calculate exponential backoff duration (default base: 500ms, max 30s)
+	baseBackoff := task.Assignment.RestartPolicy.BackoffPeriod
+	if baseBackoff <= 0 {
+		baseBackoff = 500 * time.Millisecond
+	}
+
+	// Exponential backoff: base * 2^(retry-1), clamped at 30s
+	multiplier := 1 << (currentRetries - 1)
+	if multiplier > 32 {
+		multiplier = 32
+	}
+	backoff := baseBackoff * time.Duration(multiplier)
+	if backoff > 30*time.Second {
+		backoff = 30 * time.Second
+	}
+	task.CurrentBackoff = backoff
+	task.LastRestart = time.Now().UTC()
+	task.mu.Unlock()
+
+	// Detect rapid crash loop: if retries exceed threshold or rapid consecutive crashes
+	if currentRetries > maxRetries {
+		tm.logger.Error("Task %s exceeded max restart retries (%d/%d). Entering CRASH_LOOP state.",
+			task.Assignment.TaskID, currentRetries, maxRetries)
+		_ = tm.transitionTask(context.Background(), task, models.TaskStateCrashLoop)
+		return
+	}
+
+	tm.logger.Warn("Task %s failed/exited. Restart attempt %d/%d (Backoff: %v, last: %v).",
+		task.Assignment.TaskID, currentRetries, maxRetries, backoff, lastRestart)
+
+	// Transition FAILED -> BACKOFF
+	_ = tm.transitionTask(context.Background(), task, models.TaskStateBackoff)
+
+	// Wait backoff duration asynchronously
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = tm.transitionTask(context.Background(), task, models.TaskStateStopped)
+			return
+		case <-time.After(backoff):
+		}
+
+		// Transition BACKOFF -> RESTARTING
+		if err := tm.transitionTask(context.Background(), task, models.TaskStateRestarting); err != nil {
+			tm.logger.Error("Failed to transition task %s to RESTARTING: %v", task.Assignment.TaskID, err)
+			return
+		}
+
+		// Relaunch execution
+		tm.executeTask(ctx, task)
+	}()
 }
 
 // StopTask terminates an actively running or assigned task.
@@ -310,13 +393,14 @@ func (tm *TaskManager) GetTask(taskID id.ID) (*TaskStatusSnapshot, error) {
 	}
 
 	return &TaskStatusSnapshot{
-		TaskID:    task.Assignment.TaskID,
-		State:     task.State,
-		PID:       task.PID,
-		ExitCode:  task.ExitCode,
-		StartTime: task.StartTime,
-		Duration:  duration,
-		Error:     task.ErrorMsg,
+		TaskID:       task.Assignment.TaskID,
+		State:        task.State,
+		PID:          task.PID,
+		ExitCode:     task.ExitCode,
+		StartTime:    task.StartTime,
+		Duration:     duration,
+		Error:        task.ErrorMsg,
+		RestartCount: task.RestartCount,
 	}, nil
 }
 
@@ -337,13 +421,14 @@ func (tm *TaskManager) ListTasks() []*TaskStatusSnapshot {
 			duration = t.StopTime.Sub(t.StartTime)
 		}
 		snapshots = append(snapshots, &TaskStatusSnapshot{
-			TaskID:    t.Assignment.TaskID,
-			State:     t.State,
-			PID:       t.PID,
-			ExitCode:  t.ExitCode,
-			StartTime: t.StartTime,
-			Duration:  duration,
-			Error:     t.ErrorMsg,
+			TaskID:       t.Assignment.TaskID,
+			State:        t.State,
+			PID:          t.PID,
+			ExitCode:     t.ExitCode,
+			StartTime:    t.StartTime,
+			Duration:     duration,
+			Error:        t.ErrorMsg,
+			RestartCount: t.RestartCount,
 		})
 		t.mu.RUnlock()
 	}
