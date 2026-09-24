@@ -41,6 +41,7 @@ type WorkerCapacity struct {
 	RuntimeCapabilities []string          `json:"runtime_capabilities"`
 	NodeLabels          map[string]string `json:"node_labels,omitempty"`
 	Tags                []string          `json:"tags,omitempty"`
+	TaskCount           int               `json:"task_count"`
 }
 
 // CPUAvailable returns the unallocated CPU cores on this worker.
@@ -60,6 +61,23 @@ func (w *WorkerCapacity) MemoryAvailable() int64 {
 	}
 	return avail
 }
+
+// CPUPressure returns the CPU allocation ratio (0.0 to 1.0+).
+func (w *WorkerCapacity) CPUPressure() float64 {
+	if w.CPUTotal <= 0 {
+		return 1.0
+	}
+	return w.CPUAllocated / w.CPUTotal
+}
+
+// MemoryPressure returns the Memory allocation ratio (0.0 to 1.0+).
+func (w *WorkerCapacity) MemoryPressure() float64 {
+	if w.MemoryTotal <= 0 {
+		return 1.0
+	}
+	return float64(w.MemoryAllocated) / float64(w.MemoryTotal)
+}
+
 
 // FitResult details whether a worker can run a task and the reason if rejected.
 type FitResult struct {
