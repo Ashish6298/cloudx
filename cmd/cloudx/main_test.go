@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -142,3 +144,80 @@ func TestWorkerCommands(t *testing.T) {
 		t.Fatalf("expected start, join, status subcommands, got: %s", out)
 	}
 }
+
+func TestDeployAndServiceCommands(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// 1. Initialize cluster
+	initCmd := newRootCmd()
+	initCmd.SetArgs([]string{"--storage-path", tempDir, "cluster", "init"})
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("cluster init failed: %v", err)
+	}
+
+	// 2. Create service manifest file
+	manifestContent := `
+version: "v1"
+services:
+  web-api:
+    command: python3 -m http.server 8080
+    replicas: 0
+    runtime: native
+    resources:
+      cpu: 1
+      memory: 256MB
+`
+	manifestPath := filepath.Join(tempDir, "service.yaml")
+	if err := os.WriteFile(manifestPath, []byte(manifestContent), 0644); err != nil {
+		t.Fatalf("failed to write manifest: %v", err)
+	}
+
+	// 3. cloudx deploy -f service.yaml
+	deployCmd := newRootCmd()
+	deployBuf := new(bytes.Buffer)
+	deployCmd.SetOut(deployBuf)
+	deployCmd.SetErr(deployBuf)
+	deployCmd.SetArgs([]string{"--storage-path", tempDir, "deploy", "-f", manifestPath})
+
+	if err := deployCmd.Execute(); err != nil {
+		t.Fatalf("deploy command failed: %v", err)
+	}
+
+	deployOut := deployBuf.String()
+	if !strings.Contains(deployOut, "web-api") || !strings.Contains(deployOut, "[SUCCESS]") {
+		t.Fatalf("expected deploy output to confirm success, got: %s", deployOut)
+	}
+
+	// 4. cloudx service list
+	listCmd := newRootCmd()
+	listBuf := new(bytes.Buffer)
+	listCmd.SetOut(listBuf)
+	listCmd.SetErr(listBuf)
+	listCmd.SetArgs([]string{"--storage-path", tempDir, "service", "list"})
+
+	if err := listCmd.Execute(); err != nil {
+		t.Fatalf("service list failed: %v", err)
+	}
+
+	listOut := listBuf.String()
+	if !strings.Contains(listOut, "web-api") || !strings.Contains(listOut, "SERVICE ID") {
+		t.Fatalf("expected service list table, got: %s", listOut)
+	}
+
+	// 5. cloudx service inspect web-api
+	inspectCmd := newRootCmd()
+	inspectBuf := new(bytes.Buffer)
+	inspectCmd.SetOut(inspectBuf)
+	inspectCmd.SetErr(inspectBuf)
+	inspectCmd.SetArgs([]string{"--storage-path", tempDir, "service", "inspect", "web-api"})
+
+	if err := inspectCmd.Execute(); err != nil {
+		t.Fatalf("service inspect failed: %v", err)
+	}
+
+	inspectOut := inspectBuf.String()
+	if !strings.Contains(inspectOut, "SERVICE: web-api") || !strings.Contains(inspectOut, "DEPLOYMENTS:") {
+		t.Fatalf("expected detailed service inspection, got: %s", inspectOut)
+	}
+}
+
