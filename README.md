@@ -144,4 +144,9 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 18**: Heartbeat and Failure Detection *([PHASE_18_COMPLETION_REPORT.md](./docs/reports/PHASE_18_COMPLETION_REPORT.md))*
   - [x] **Phase 19**: Cluster Commands *([PHASE_19_COMPLETION_REPORT.md](./docs/reports/PHASE_19_COMPLETION_REPORT.md))*
 - [ ] **Milestone 6: Scheduler** (Phases 20–23)
+  - [x] **Phase 20**: Scheduling Model *([PHASE_20_COMPLETION_REPORT.md](./docs/reports/PHASE_20_COMPLETION_REPORT.md))*
+  - [ ] **Phase 21**: Basic Scheduler
+  - [ ] **Phase 22**: Scheduling Queue
+  - [ ] **Phase 23**: Affinity and Constraints
 - [ ] **Milestones 7–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+
