@@ -141,12 +141,17 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 		nodeID = id.NewNodeID()
 	}
 
+	nodeName := req.Hostname
+	if nodeName == "" {
+		nodeName = "node-" + string(nodeID)
+	}
+
 	_, err := s.store.Nodes().Get(ctx, nodeID)
 	if err != nil {
 		now := time.Now().UTC()
 		_ = s.store.Nodes().Create(ctx, &models.Node{
 			ID:        nodeID,
-			Name:      "node-" + string(nodeID),
+			Name:      nodeName,
 			Address:   req.Address,
 			Status:    "READY",
 			CreatedAt: now,
@@ -155,13 +160,33 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 	}
 
 	workerID := id.ID(req.WorkerId)
-	// Check for duplicate registration
+	now := time.Now().UTC()
+
+	// Safe duplicate handling: if already registered from same address, update & return success; if address mismatch, reject
 	existing, _ := s.store.Workers().Get(ctx, workerID)
 	if existing != nil {
-		return nil, status.Errorf(codes.AlreadyExists, "worker %s is already registered", req.WorkerId)
+		if existing.Address == req.Address {
+			// Re-registration / worker restart with same ID and address
+			existing.Heartbeat = now
+			existing.Status = "READY"
+			existing.UpdatedAt = now
+			_ = s.store.Workers().Update(ctx, existing)
+
+			return &v1.RegisterWorkerResponse{
+				Accepted:            true,
+				Message:             "Worker re-registered successfully",
+				ClusterId:           "cloudx-cluster-main",
+				RegisteredAt:        now.Unix(),
+				HeartbeatIntervalMs: 5000,
+				WorkerConfig: map[string]string{
+					"cluster_domain": "cloudx.local",
+					"log_level":      "info",
+				},
+			}, nil
+		}
+		return nil, status.Errorf(codes.AlreadyExists, "worker %s is already registered with a different address (%s)", req.WorkerId, existing.Address)
 	}
 
-	now := time.Now().UTC()
 	worker := &models.Worker{
 		ID:        workerID,
 		NodeID:    nodeID,
@@ -177,9 +202,15 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 	}
 
 	return &v1.RegisterWorkerResponse{
-		Accepted:     true,
-		Message:      "Worker registered successfully",
-		RegisteredAt: now.Unix(),
+		Accepted:            true,
+		Message:             "Worker registered successfully",
+		ClusterId:           "cloudx-cluster-main",
+		RegisteredAt:        now.Unix(),
+		HeartbeatIntervalMs: 5000,
+		WorkerConfig: map[string]string{
+			"cluster_domain": "cloudx.local",
+			"log_level":      "info",
+		},
 	}, nil
 }
 

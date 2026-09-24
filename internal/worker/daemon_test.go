@@ -115,6 +115,10 @@ func TestWorker_Lifecycle_StartupRegistrationShutdown(t *testing.T) {
 		t.Fatalf("expected status READY after registration, got %s", daemon.Status())
 	}
 
+	if daemon.ClusterID() == "" {
+		t.Fatalf("expected non-empty cluster ID after registration, got empty")
+	}
+
 	// Wait for heartbeats to trigger
 	time.Sleep(150 * time.Millisecond)
 
@@ -132,6 +136,29 @@ func TestWorker_Lifecycle_StartupRegistrationShutdown(t *testing.T) {
 	if daemon.Status() != StatusStopped {
 		t.Fatalf("expected status STOPPED, got %s", daemon.Status())
 	}
+
+	// Re-start worker daemon (simulating reboot) -> safe re-registration
+	daemon2, err := NewDaemon(Options{
+		Config: cfg,
+		Logger: logging.NewDefaultLogger(),
+	})
+	if err != nil {
+		t.Fatalf("failed to create second daemon: %v", err)
+	}
+	if daemon2.ID() != daemon.ID() {
+		t.Fatalf("expected stable worker ID across reboots, got %s vs %s", daemon2.ID(), daemon.ID())
+	}
+
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	err = daemon2.Start(ctx2)
+	if err != nil {
+		t.Fatalf("failed to re-register daemon: %v", err)
+	}
+	if daemon2.Status() != StatusReady {
+		t.Fatalf("expected status READY after re-registration, got %s", daemon2.Status())
+	}
+	_ = daemon2.Stop(context.Background())
 }
 
 func TestWorker_ControlPlaneUnavailable(t *testing.T) {

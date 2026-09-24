@@ -3,13 +3,16 @@ package worker
 import (
 	"context"
 	"fmt"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
+	"github.com/cloudx-org/cloudx/internal/common/version"
 	"github.com/cloudx-org/cloudx/internal/config"
-	"github.com/cloudx-org/cloudx/internal/runtime"
+	run "github.com/cloudx-org/cloudx/internal/runtime"
 	"github.com/cloudx-org/cloudx/internal/worker/monitor"
 	v1 "github.com/cloudx-org/cloudx/proto/v1"
 	"google.golang.org/grpc"
@@ -32,7 +35,7 @@ const (
 type Options struct {
 	Config    *config.Config
 	Logger    logging.Logger
-	Runtime   runtime.Runtime
+	Runtime   run.Runtime
 	Collector monitor.Collector
 }
 
@@ -41,10 +44,11 @@ type Daemon struct {
 	mu           sync.RWMutex
 	cfg          *config.Config
 	logger       logging.Logger
-	runtime      runtime.Runtime
+	runtime      run.Runtime
 	taskManager  *TaskManager
 	collector    monitor.Collector
 	id           id.ID
+	clusterID    string
 	status       Status
 	cancel       context.CancelFunc
 	clientConn   *grpc.ClientConn
@@ -65,7 +69,7 @@ func NewDaemon(opts Options) (*Daemon, error) {
 		opts.Logger = logging.NewDefaultLogger()
 	}
 	if opts.Runtime == nil {
-		opts.Runtime = runtime.NewNativeRuntime()
+		opts.Runtime = run.NewNativeRuntime()
 	}
 	if opts.Collector == nil {
 		opts.Collector = monitor.NewPlatformCollector()
@@ -101,6 +105,13 @@ func NewDaemon(opts Options) (*Daemon, error) {
 // ID returns the stable worker ID.
 func (d *Daemon) ID() id.ID {
 	return d.id
+}
+
+// ClusterID returns the cluster ID returned by the control plane.
+func (d *Daemon) ClusterID() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.clusterID
 }
 
 // TaskManager returns the worker task manager.
@@ -161,14 +172,30 @@ func (d *Daemon) Start(ctx context.Context) error {
 	d.cpClient = v1.NewControlPlaneServiceClient(conn)
 	d.mu.Unlock()
 
-	// 1. Register with Control Plane
-	d.logger.Info("Registering worker %s with control plane...", d.id)
+	// 1. Gather hardware telemetry for registration
+	hostname, _ := os.Hostname()
+	cpuCapacity := float64(runtime.NumCPU())
+	var memCapacity int64
+	if d.collector != nil {
+		if metrics, err := d.collector.Collect(runCtx); err == nil && metrics != nil {
+			memCapacity = metrics.TotalMemoryBytes
+		}
+	}
+
+	// 2. Register with Control Plane
+	d.logger.Info("Registering worker %s (host: %s, CPUs: %.0f) with control plane...", d.id, hostname, cpuCapacity)
 	regResp, err := d.cpClient.RegisterWorker(runCtx, &v1.RegisterWorkerRequest{
-		NodeId:   d.cfg.Node.ID,
-		WorkerId: d.id.String(),
-		Address:  d.cfg.Worker.Address,
+		NodeId:              d.cfg.Node.ID,
+		WorkerId:            d.id.String(),
+		Hostname:            hostname,
+		Address:             d.cfg.Worker.Address,
+		RuntimeCapabilities: []string{d.cfg.Runtime.Type, d.runtime.Type()},
+		CpuCapacity:         cpuCapacity,
+		MemoryCapacity:      memCapacity,
+		Version:             version.Get().Version,
 		Metadata: map[string]string{
-			"runtime": d.cfg.Runtime.Type,
+			"runtime":  d.cfg.Runtime.Type,
+			"platform": fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
 		},
 	})
 	if err != nil {
@@ -182,10 +209,17 @@ func (d *Daemon) Start(ctx context.Context) error {
 		return fmt.Errorf("registration rejected by control plane: %s", regResp.Message)
 	}
 
-	d.setStatus(StatusReady)
-	d.logger.Info("Worker %s registered successfully (Status: READY)", d.id)
+	d.mu.Lock()
+	d.clusterID = regResp.ClusterId
+	if regResp.HeartbeatIntervalMs > 0 {
+		d.heartbeatDur = time.Duration(regResp.HeartbeatIntervalMs) * time.Millisecond
+	}
+	d.mu.Unlock()
 
-	// 2. Start Background Heartbeat Loop
+	d.setStatus(StatusReady)
+	d.logger.Info("Worker %s registered successfully with cluster %s (Status: READY)", d.id, regResp.ClusterId)
+
+	// 3. Start Background Heartbeat Loop
 	go d.heartbeatLoop(runCtx)
 
 	return nil

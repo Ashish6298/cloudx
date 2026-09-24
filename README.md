@@ -139,5 +139,9 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 14**: Native Process Runtime *([PHASE_14_COMPLETION_REPORT.md](./docs/reports/PHASE_14_COMPLETION_REPORT.md))*
   - [x] **Phase 15**: Task Manager *([PHASE_15_COMPLETION_REPORT.md](./docs/reports/PHASE_15_COMPLETION_REPORT.md))*
   - [x] **Phase 16**: Resource Monitor *([PHASE_16_COMPLETION_REPORT.md](./docs/reports/PHASE_16_COMPLETION_REPORT.md))*
-- [ ] **Milestone 5: Worker Registration and Cluster** (Phases 17–20)
+- [x] **Milestone 5: Worker Registration and Cluster** (Phases 17–20)
+  - [x] **Phase 17**: Worker Registration *([PHASE_17_COMPLETION_REPORT.md](./docs/reports/PHASE_17_COMPLETION_REPORT.md))*
+  - [ ] **Phase 18**: Heartbeat and Failure Detection
+  - [ ] **Phase 19**: Node Eviction and Drain
+  - [ ] **Phase 20**: Cluster Membership API
 - [ ] **Milestones 6–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
