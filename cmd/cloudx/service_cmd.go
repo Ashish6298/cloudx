@@ -105,6 +105,7 @@ func newServiceCmd() *cobra.Command {
 
 	cmd.AddCommand(newServiceListCmd())
 	cmd.AddCommand(newServiceInspectCmd())
+	cmd.AddCommand(newServiceScaleCmd())
 	return cmd
 }
 
@@ -258,3 +259,69 @@ func newServiceInspectCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output service inspection as JSON")
 	return cmd
 }
+
+func newServiceScaleCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "scale <service-name-or-id> <replicas>",
+		Short: "Scale the replica count of a service up or down",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serviceNameOrID := args[0]
+			var replicas int
+			if _, err := fmt.Sscanf(args[1], "%d", &replicas); err != nil || replicas < 0 {
+				return fmt.Errorf("invalid replica count '%s': must be a non-negative integer", args[1])
+			}
+
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to connect to cluster store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logging.NewDefaultLogger(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			res, err := cp.ScaleService(ctx, serviceNameOrID, replicas, nil)
+			if err != nil {
+				return fmt.Errorf("failed to scale service %s: %w", serviceNameOrID, err)
+			}
+
+			if jsonOutput {
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(res)
+			}
+
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "Service '%s' scaled successfully:\n", res.ServiceName)
+			fmt.Fprintf(out, "  Previous Replicas: %d\n", res.PreviousReplicas)
+			fmt.Fprintf(out, "  Desired Replicas:  %d\n", res.DesiredReplicas)
+			fmt.Fprintf(out, "  Tasks Created:     %d\n", res.Summary.CreatedTasks)
+			fmt.Fprintf(out, "  Tasks Removed:     %d\n", res.Summary.RemovedTasks)
+			fmt.Fprintf(out, "  Status:            %s\n", res.Status)
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output scale result as JSON")
+	return cmd
+}
+

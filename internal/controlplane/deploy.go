@@ -241,3 +241,80 @@ func (cp *ControlPlane) InspectService(ctx context.Context, nameOrID string) (*S
 		Tasks:       svcTasks,
 	}, nil
 }
+
+// ScaleResult details the outcome of a service scaling operation.
+type ScaleResult struct {
+	ServiceID       id.ID                  `json:"service_id"`
+	ServiceName     string                 `json:"service_name"`
+	PreviousReplicas int                   `json:"previous_replicas"`
+	DesiredReplicas  int                   `json:"desired_replicas"`
+	Summary          ReconciliationSummary `json:"summary"`
+	Status           string                `json:"status"`
+	UpdatedAt        time.Time             `json:"updated_at"`
+}
+
+// ScaleService updates the desired replica count for a service and runs reconciliation to converge.
+func (cp *ControlPlane) ScaleService(ctx context.Context, nameOrID string, replicas int, dispatcher scheduler.Dispatcher) (*ScaleResult, error) {
+	if replicas < 0 {
+		return nil, fmt.Errorf("replicas cannot be negative (got %d)", replicas)
+	}
+
+	store := cp.StateManager.Store()
+	if store == nil {
+		return nil, fmt.Errorf("state store is not available")
+	}
+
+	inspectRes, err := cp.InspectService(ctx, nameOrID)
+	if err != nil {
+		return nil, err
+	}
+
+	svc := inspectRes.Service
+	prevReplicas := svc.Replicas
+	now := time.Now().UTC()
+
+	svc.Replicas = replicas
+	svc.UpdatedAt = now
+	if err := store.Services().Update(ctx, svc); err != nil {
+		return nil, fmt.Errorf("failed to update desired replicas: %w", err)
+	}
+
+	// Run Reconciler to converge actual tasks to new desired replicas
+	reconciler := cp.Reconciler
+	if dispatcher != nil {
+		reconciler.SetDispatcher(dispatcher)
+	}
+
+	summary, err := reconciler.ReconcileAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("reconciliation failed after scale update: %w", err)
+	}
+
+	// Fetch updated status
+	updatedSvc, _ := store.Services().Get(ctx, svc.ID)
+	status := "RUNNING"
+	if updatedSvc != nil {
+		status = updatedSvc.Status
+	}
+
+	// Append scaling audit event
+	_ = store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "SERVICE_SCALED",
+		Source:    "controlplane",
+		EntityID:  svc.ID,
+		Payload:   fmt.Sprintf(`{"service":"%s","prev_replicas":%d,"desired_replicas":%d,"created":%d,"removed":%d}`, svc.Name, prevReplicas, replicas, summary.CreatedTasks, summary.RemovedTasks),
+		CreatedAt: now,
+	})
+
+	return &ScaleResult{
+		ServiceID:        svc.ID,
+		ServiceName:      svc.Name,
+		PreviousReplicas: prevReplicas,
+		DesiredReplicas:  replicas,
+		Summary:          *summary,
+		Status:           status,
+		UpdatedAt:        now,
+	}, nil
+}
+

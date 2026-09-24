@@ -219,5 +219,21 @@ services:
 	if !strings.Contains(inspectOut, "SERVICE: web-api") || !strings.Contains(inspectOut, "DEPLOYMENTS:") {
 		t.Fatalf("expected detailed service inspection, got: %s", inspectOut)
 	}
+
+	// 6. cloudx service scale web-api 5
+	scaleCmd := newRootCmd()
+	scaleBuf := new(bytes.Buffer)
+	scaleCmd.SetOut(scaleBuf)
+	scaleCmd.SetErr(scaleBuf)
+	scaleCmd.SetArgs([]string{"--storage-path", tempDir, "service", "scale", "web-api", "5"})
+
+	if err := scaleCmd.Execute(); err != nil {
+		t.Fatalf("service scale failed: %v", err)
+	}
+
+	scaleOut := scaleBuf.String()
+	if !strings.Contains(scaleOut, "scaled successfully") || !strings.Contains(scaleOut, "Desired Replicas:  5") {
+		t.Fatalf("expected scale output confirmation, got: %s", scaleOut)
+	}
 }
 

@@ -151,9 +151,10 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 23**: Service Definition *([PHASE_23_COMPLETION_REPORT.md](./docs/reports/PHASE_23_COMPLETION_REPORT.md))*
   - [x] **Phase 24**: Service Deployment *([PHASE_24_COMPLETION_REPORT.md](./docs/reports/PHASE_24_COMPLETION_REPORT.md))*
   - [x] **Phase 25**: Reconciliation Engine *([PHASE_25_COMPLETION_REPORT.md](./docs/reports/PHASE_25_COMPLETION_REPORT.md))*
-  - [ ] **Phase 26**: Service State Machine
-  - [ ] **Phase 27**: Rolling Updates
+  - [x] **Phase 26**: Replica Scaling *([PHASE_26_COMPLETION_REPORT.md](./docs/reports/PHASE_26_COMPLETION_REPORT.md))*
+  - [ ] **Phase 27**: Restart Policies
 - [ ] **Milestones 8–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+
 
 
 
