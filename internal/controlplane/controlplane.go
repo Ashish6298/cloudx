@@ -99,14 +99,6 @@ func (c *HealthManager) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Reconciler runs the continuous desired-state convergence loop.
-type Reconciler struct{}
-
-func NewReconciler() *Reconciler                  { return &Reconciler{} }
-func (c *Reconciler) Name() string                { return "Reconciler" }
-func (c *Reconciler) Start(ctx context.Context) error { return nil }
-func (c *Reconciler) Stop(ctx context.Context) error  { return nil }
-
 // EventManager processes and appends cluster events.
 type EventManager struct{}
 
@@ -168,7 +160,7 @@ func New(opts Options) (*ControlPlane, error) {
 	scheduler := NewScheduler()
 	depMgr := NewDeploymentManager()
 	healthMgr := NewHealthManager(opts.Store, opts.Logger, opts.Config.Health.HeartbeatInterval)
-	reconciler := NewReconciler()
+	reconciler := NewReconciler(DefaultReconcilerConfig(), opts.Store, nil, nil, opts.Logger)
 	eventMgr := NewEventManager()
 
 	coreComponents := []Component{
