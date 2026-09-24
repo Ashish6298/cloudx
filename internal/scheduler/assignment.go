@@ -20,12 +20,13 @@ type Dispatcher interface {
 
 // TaskSpec specifies execution parameters for a task workload.
 type TaskSpec struct {
-	Command     string            `json:"command"`
-	Args        []string          `json:"args,omitempty"`
-	Environment map[string]string `json:"environment,omitempty"`
-	WorkingDir  string            `json:"working_dir,omitempty"`
-	Runtime     string            `json:"runtime,omitempty"`
-	SpecJSON    string            `json:"spec_json,omitempty"`
+	Command       string               `json:"command"`
+	Args          []string             `json:"args,omitempty"`
+	Environment   map[string]string    `json:"environment,omitempty"`
+	WorkingDir    string               `json:"working_dir,omitempty"`
+	Runtime       string               `json:"runtime,omitempty"`
+	RestartPolicy models.RestartPolicy `json:"restart_policy,omitempty"`
+	SpecJSON      string               `json:"spec_json,omitempty"`
 }
 
 // AssignOptions configures task assignment execution.

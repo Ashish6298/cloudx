@@ -59,8 +59,37 @@ var AllowedTransitions = map[models.TaskState]map[models.TaskState]bool{
 		models.TaskStateFailed:  true,
 		models.TaskStateLost:    true,
 	},
+	models.TaskStateFailed: {
+		models.TaskStateBackoff:    true,
+		models.TaskStateRestarting: true,
+		models.TaskStateCrashLoop:  true,
+		models.TaskStateStopped:    true,
+		models.TaskStateLost:       true,
+	},
+	models.TaskStateBackoff: {
+		models.TaskStateRestarting: true,
+		models.TaskStateCrashLoop:  true,
+		models.TaskStateStopping:   true,
+		models.TaskStateStopped:    true,
+		models.TaskStateFailed:     true,
+		models.TaskStateLost:       true,
+	},
+	models.TaskStateRestarting: {
+		models.TaskStateStarting: true,
+		models.TaskStateRunning:  true,
+		models.TaskStateFailed:   true,
+		models.TaskStateStopping: true,
+		models.TaskStateStopped:  true,
+		models.TaskStateLost:     true,
+	},
+	models.TaskStateCrashLoop: {
+		models.TaskStateRestarting: true,
+		models.TaskStateStopping:   true,
+		models.TaskStateStopped:    true,
+		models.TaskStateFailed:     true,
+		models.TaskStateLost:       true,
+	},
 	models.TaskStateStopped: {}, // Terminal
-	models.TaskStateFailed:  {}, // Terminal
 	models.TaskStateLost:    {}, // Terminal
 }
 

@@ -83,7 +83,6 @@ func TestInvalidTransitions(t *testing.T) {
 func TestTerminalStates(t *testing.T) {
 	terminalStates := []models.TaskState{
 		models.TaskStateStopped,
-		models.TaskStateFailed,
 		models.TaskStateLost,
 	}
 
