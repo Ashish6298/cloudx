@@ -141,7 +141,7 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 16**: Resource Monitor *([PHASE_16_COMPLETION_REPORT.md](./docs/reports/PHASE_16_COMPLETION_REPORT.md))*
 - [x] **Milestone 5: Worker Registration and Cluster** (Phases 17–20)
   - [x] **Phase 17**: Worker Registration *([PHASE_17_COMPLETION_REPORT.md](./docs/reports/PHASE_17_COMPLETION_REPORT.md))*
-  - [ ] **Phase 18**: Heartbeat and Failure Detection
-  - [ ] **Phase 19**: Node Eviction and Drain
+  - [x] **Phase 18**: Heartbeat and Failure Detection *([PHASE_18_COMPLETION_REPORT.md](./docs/reports/PHASE_18_COMPLETION_REPORT.md))*
+  - [ ] **Phase 19**: Cluster Commands
   - [ ] **Phase 20**: Cluster Membership API
 - [ ] **Milestones 6–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
