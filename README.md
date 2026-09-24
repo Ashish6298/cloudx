@@ -133,5 +133,11 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 9**: Control Plane Core *([PHASE_9_COMPLETION_REPORT.md](./docs/reports/PHASE_9_COMPLETION_REPORT.md))*
   - [x] **Phase 10**: Protobuf Definitions *([PHASE_10_COMPLETION_REPORT.md](./docs/reports/PHASE_10_COMPLETION_REPORT.md))*
   - [x] **Phase 11**: gRPC Control Plane API *([PHASE_11_COMPLETION_REPORT.md](./docs/reports/PHASE_11_COMPLETION_REPORT.md))*
-- [ ] **Milestone 4: Worker Runtime** (Phases 12–15)
-- [ ] **Milestones 5–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+- [x] **Milestone 4: Worker Runtime** (Phases 12–16)
+  - [x] **Phase 12**: Worker Daemon *([PHASE_12_COMPLETION_REPORT.md](./docs/reports/PHASE_12_COMPLETION_REPORT.md))*
+  - [x] **Phase 13**: Runtime Interface *([PHASE_13_COMPLETION_REPORT.md](./docs/reports/PHASE_13_COMPLETION_REPORT.md))*
+  - [x] **Phase 14**: Native Process Runtime *([PHASE_14_COMPLETION_REPORT.md](./docs/reports/PHASE_14_COMPLETION_REPORT.md))*
+  - [x] **Phase 15**: Task Manager *([PHASE_15_COMPLETION_REPORT.md](./docs/reports/PHASE_15_COMPLETION_REPORT.md))*
+  - [x] **Phase 16**: Resource Monitor *([PHASE_16_COMPLETION_REPORT.md](./docs/reports/PHASE_16_COMPLETION_REPORT.md))*
+- [ ] **Milestone 5: Worker Registration and Cluster** (Phases 17–20)
+- [ ] **Milestones 6–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.

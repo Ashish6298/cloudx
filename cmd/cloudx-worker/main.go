@@ -1,12 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/common/version"
 	"github.com/cloudx-org/cloudx/internal/config"
+	"github.com/cloudx-org/cloudx/internal/worker"
 	"github.com/spf13/cobra"
 )
 
@@ -26,8 +31,53 @@ supervises native processes, collects metrics/logs, and performs health checks.`
 	cmd.PersistentFlags().StringVar(&workerCLIOpts.ControlPlaneAddr, "control-plane-addr", "", "Override Control Plane endpoint")
 	cmd.PersistentFlags().StringVar(&workerCLIOpts.LogLevel, "log-level", "", "Override Logging level (debug, info, warn, error)")
 
+	cmd.AddCommand(newStartCmd())
 	cmd.AddCommand(newVersionCmd())
 	cmd.AddCommand(newWorkerConfigCmd())
+	return cmd
+}
+
+func newStartCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start the CloudX worker daemon",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load(workerCLIOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load worker configuration: %w", err)
+			}
+
+			logger := logging.New(logging.ParseLevel(cfg.Logging.Level), logging.FormatText)
+			logger.Info("Starting cloudx-worker %s...", version.Get().Version)
+
+			daemon, err := worker.NewDaemon(worker.Options{
+				Config: cfg,
+				Logger: logger,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize worker daemon: %w", err)
+			}
+
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+			go func() {
+				sig := <-sigChan
+				logger.Info("Received signal %s, initiating graceful shutdown...", sig)
+				cancel()
+			}()
+
+			if err := daemon.Start(ctx); err != nil {
+				return fmt.Errorf("worker daemon error: %w", err)
+			}
+
+			// Block until context canceled
+			<-ctx.Done()
+			return daemon.Stop(context.Background())
+		},
+	}
 	return cmd
 }
 
