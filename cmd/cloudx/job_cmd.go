@@ -36,6 +36,8 @@ Jobs utilize the same underlying scheduler, worker daemon, native runtime, event
 	cmd.AddCommand(newJobListCmd())
 	cmd.AddCommand(newJobInspectCmd())
 	cmd.AddCommand(newJobLogsCmd())
+	cmd.AddCommand(newJobCancelCmd())
+	cmd.AddCommand(newJobRetryCmd())
 	return cmd
 }
 
@@ -494,5 +496,140 @@ func newJobLogsCmd() *cobra.Command {
 	cmd.Flags().IntVarP(&tail, "tail", "n", 0, "Number of recent lines to display")
 	cmd.Flags().StringVar(&sinceStr, "since", "", "Show logs since relative duration (e.g. 5m, 1h)")
 
+	return cmd
+}
+
+func newJobCancelCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "cancel [job-name | job-id]",
+		Short: "Cancel an active or running job workload",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			jobNameOrID := args[0]
+
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to connect to cluster state store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logging.NewDefaultLogger(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			if err := cp.CancelJob(ctx, jobNameOrID); err != nil {
+				return fmt.Errorf("failed to cancel job: %w", err)
+			}
+
+			fmt.Fprintf(out, "Job '%s' cancelled successfully.\n", jobNameOrID)
+			return nil
+		},
+	}
+	return cmd
+}
+
+func newJobRetryCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "retry [job-name | job-id]",
+		Short: "Retry a failed job workload",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			jobNameOrID := args[0]
+
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to connect to cluster state store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logging.NewDefaultLogger(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			// Setup RPC Dispatcher to Workers
+			dispatcher := scheduler.NewInProcessDispatcher()
+			workers, err := store.Workers().List(ctx)
+			if err == nil {
+				for _, w := range workers {
+					workerCopy := w
+					if workerCopy.Address != "" {
+						dispatcher.RegisterWorkerHandler(workerCopy.ID, func(dCtx context.Context, req *v1.TaskAssignmentRequest) error {
+							conn, err := grpc.DialContext(dCtx, workerCopy.Address,
+								grpc.WithTransportCredentials(insecure.NewCredentials()),
+								grpc.WithBlock(),
+							)
+							if err != nil {
+								return fmt.Errorf("failed to dial worker %s: %w", workerCopy.ID, err)
+							}
+							defer conn.Close()
+
+							client := v1.NewControlPlaneServiceClient(conn)
+							resp, err := client.AssignTask(dCtx, req)
+							if err != nil {
+								return err
+							}
+							if !resp.Accepted {
+								return fmt.Errorf("worker rejected retry: %s", resp.Message)
+							}
+							return nil
+						})
+					} else {
+						dispatcher.RegisterWorkerHandler(workerCopy.ID, func(dCtx context.Context, req *v1.TaskAssignmentRequest) error {
+							return nil
+						})
+					}
+				}
+			}
+
+			result, err := cp.RetryJob(ctx, jobNameOrID, dispatcher)
+			if err != nil {
+				return fmt.Errorf("failed to retry job: %w", err)
+			}
+
+			if jsonOutput {
+				b, _ := json.MarshalIndent(result, "", "  ")
+				fmt.Fprintln(out, string(b))
+				return nil
+			}
+
+			fmt.Fprintf(out, "Job '%s' retry scheduled successfully (Task ID: %s, Worker: %s)\n",
+				result.JobName, result.TaskID, result.WorkerID)
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 	return cmd
 }

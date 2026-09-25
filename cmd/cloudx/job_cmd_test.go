@@ -134,4 +134,56 @@ jobs:
 	if !strings.Contains(fileRunOut, "Job 'db-seed' submitted successfully!") {
 		t.Fatalf("expected 'db-seed' submission, got:\n%s", fileRunOut)
 	}
+
+	// 6. Test `cloudx job cancel migration`
+	cancelCmd := newRootCmd()
+	cancelBuf := new(bytes.Buffer)
+	cancelCmd.SetOut(cancelBuf)
+	cancelCmd.SetErr(cancelBuf)
+	cancelCmd.SetArgs([]string{"--storage-path", tempDir, "job", "cancel", "migration"})
+
+	if err := cancelCmd.Execute(); err != nil {
+		t.Fatalf("job cancel command failed: %v", err)
+	}
+	cancelOut := cancelBuf.String()
+	if !strings.Contains(cancelOut, "cancelled successfully") {
+		t.Fatalf("expected cancel success output, got:\n%s", cancelOut)
+	}
+
+	// 7. Test `cloudx job retry`
+	// Mark db-seed as FAILED directly in store
+	store2, err := sqlite.Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	jobs, _ := store2.Jobs().List(ctx)
+	for _, j := range jobs {
+		if j.Name == "db-seed" {
+			j.Status = "FAILED"
+			rec, _ := models.JobFromModel(j)
+			if rec != nil {
+				rec.State = models.JobStateFailed
+				if specJSON, err := rec.ToSpecJSON(); err == nil {
+					j.SpecJSON = specJSON
+				}
+			}
+			_ = store2.Jobs().Update(ctx, j)
+			break
+		}
+	}
+	_ = store2.Close()
+
+	retryCmd := newRootCmd()
+	retryBuf := new(bytes.Buffer)
+	retryCmd.SetOut(retryBuf)
+	retryCmd.SetErr(retryBuf)
+	retryCmd.SetArgs([]string{"--storage-path", tempDir, "job", "retry", "db-seed"})
+
+	if err := retryCmd.Execute(); err != nil {
+		t.Fatalf("job retry command failed: %v", err)
+	}
+	retryOut := retryBuf.String()
+	if !strings.Contains(retryOut, "retry scheduled successfully") {
+		t.Fatalf("expected retry success output, got:\n%s", retryOut)
+	}
 }

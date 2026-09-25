@@ -270,3 +270,160 @@ func (cp *ControlPlane) GetJobLogs(ctx context.Context, jobNameOrID string, filt
 	entries := logger.ReadFilteredLogs(filter, taskIDs)
 	return entries, taskIDs, nil
 }
+
+// CancelJob terminates an active or assigned job workload.
+func (cp *ControlPlane) CancelJob(ctx context.Context, jobNameOrID string) error {
+	store := cp.StateManager.Store()
+	if store == nil {
+		return fmt.Errorf("state store is not available")
+	}
+
+	inspectRes, err := cp.InspectJob(ctx, jobNameOrID)
+	if err != nil {
+		return err
+	}
+
+	jobRec := inspectRes.Job
+	if models.IsTerminalJobState(jobRec.State) {
+		return fmt.Errorf("job '%s' is already in terminal state %s", jobRec.Name, jobRec.State)
+	}
+
+	now := time.Now().UTC()
+	if err := jobRec.Transition(models.JobStateCancelled); err != nil {
+		return fmt.Errorf("failed to cancel job: %w", err)
+	}
+
+	// Update DB job record
+	dbJob, _ := store.Jobs().Get(ctx, jobRec.ID)
+	if dbJob != nil {
+		dbJob.Status = string(models.JobStateCancelled)
+		dbJob.UpdatedAt = now
+		if specJSON, err := jobRec.ToSpecJSON(); err == nil {
+			dbJob.SpecJSON = specJSON
+		}
+		_ = store.Jobs().Update(ctx, dbJob)
+	}
+
+	// Terminate associated active task if present
+	if jobRec.TaskID != "" {
+		if task, err := store.Tasks().Get(ctx, jobRec.TaskID); err == nil && task != nil {
+			task.State = string(models.TaskStateStopped)
+			task.UpdatedAt = now
+			_ = store.Tasks().Update(ctx, task)
+		}
+	}
+
+	// Append JOB_CANCELLED audit event
+	_ = store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "JOB_CANCELLED",
+		Source:    "controlplane",
+		EntityID:  jobRec.ID,
+		Payload:   fmt.Sprintf(`{"name":"%s","task_id":"%s"}`, jobRec.Name, jobRec.TaskID),
+		CreatedAt: now,
+	})
+
+	return nil
+}
+
+// RetryJob attempts to re-execute a failed job workload according to its retry policy or explicit trigger.
+func (cp *ControlPlane) RetryJob(ctx context.Context, jobNameOrID string, dispatcher scheduler.Dispatcher) (*JobRunResult, error) {
+	inspectRes, err := cp.InspectJob(ctx, jobNameOrID)
+	if err != nil {
+		return nil, err
+	}
+
+	jobRec := inspectRes.Job
+	if jobRec.State != models.JobStateFailed {
+		return nil, fmt.Errorf("job '%s' is in state %s (only FAILED jobs can be retried)", jobRec.Name, jobRec.State)
+	}
+
+	// Transition FAILED -> PENDING
+	if err := jobRec.Transition(models.JobStatePending); err != nil {
+		return nil, fmt.Errorf("failed to transition job for retry: %w", err)
+	}
+	jobRec.RetryCount++
+
+	store := cp.StateManager.Store()
+	newTaskID := id.NewTaskID()
+	jobRec.TaskID = newTaskID
+	now := time.Now().UTC()
+	jobRec.UpdatedAt = now
+
+	specJSON, _ := jobRec.ToSpecJSON()
+	dbJob, _ := store.Jobs().Get(ctx, jobRec.ID)
+	if dbJob != nil {
+		dbJob.Status = string(models.JobStatePending)
+		dbJob.SpecJSON = specJSON
+		dbJob.UpdatedAt = now
+		_ = store.Jobs().Update(ctx, dbJob)
+	}
+
+	// Append JOB_RETRY_TRIGGERED audit event
+	_ = store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "JOB_RETRY_TRIGGERED",
+		Source:    "controlplane",
+		EntityID:  jobRec.ID,
+		Payload:   fmt.Sprintf(`{"name":"%s","retry_count":%d,"new_task_id":"%s"}`, jobRec.Name, jobRec.RetryCount, newTaskID),
+		CreatedAt: now,
+	})
+
+	// Schedule retry task using AssignmentCoordinator
+	coordinator := scheduler.NewAssignmentCoordinator(store, scheduler.NewBasicScheduler(), dispatcher, cp.logger)
+	assignRes, err := coordinator.Assign(ctx, scheduler.AssignOptions{
+		TaskID: newTaskID,
+		JobID:  jobRec.ID,
+		Requirements: &scheduler.TaskRequirements{
+			TaskID:          newTaskID,
+			CPU:             jobRec.Config.Resources.CPU,
+			Memory:          jobRec.Config.Resources.Memory,
+			RequiredRuntime: jobRec.Config.Runtime,
+		},
+		Spec: scheduler.TaskSpec{
+			Command:     jobRec.Config.Command,
+			Args:        jobRec.Config.Args,
+			Environment: jobRec.Config.Environment,
+			WorkingDir:  jobRec.Config.WorkingDir,
+			Runtime:     jobRec.Config.Runtime,
+			RestartPolicy: models.RestartPolicy{
+				Type:       models.RestartPolicyNever,
+				MaxRetries: jobRec.Config.RetryPolicy.MaxRetries,
+			},
+			SpecJSON: specJSON,
+		},
+	})
+	if err != nil {
+		_ = jobRec.Transition(models.JobStateFailed)
+		if dbJob != nil {
+			dbJob.Status = string(models.JobStateFailed)
+			dbJob.UpdatedAt = time.Now().UTC()
+			_ = store.Jobs().Update(ctx, dbJob)
+		}
+		return nil, fmt.Errorf("failed to schedule retry task for job '%s': %w", jobRec.Name, err)
+	}
+
+	_ = jobRec.Transition(models.JobStateAssigned)
+	jobRec.AssignedTo = assignRes.WorkerID
+	jobRec.UpdatedAt = time.Now().UTC()
+
+	updatedSpecJSON, _ := jobRec.ToSpecJSON()
+	if dbJob != nil {
+		dbJob.Status = string(models.JobStateAssigned)
+		dbJob.SpecJSON = updatedSpecJSON
+		dbJob.UpdatedAt = jobRec.UpdatedAt
+		_ = store.Jobs().Update(ctx, dbJob)
+	}
+
+	return &JobRunResult{
+		JobID:       jobRec.ID,
+		JobName:     jobRec.Name,
+		TaskID:      newTaskID,
+		WorkerID:    assignRes.WorkerID,
+		Hostname:    assignRes.Hostname,
+		State:       jobRec.State,
+		ConfigHash:  jobRec.ConfigHash,
+		Assignment:  assignRes,
+		ScheduledAt: now,
+	}, nil
+}

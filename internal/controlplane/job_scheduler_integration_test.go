@@ -25,6 +25,95 @@ func getEchoCmd(text string) (string, []string) {
 	return "sh", []string{"-c", fmt.Sprintf("echo '%s'", text)}
 }
 
+func TestJobLifecycle_CancelAndRetry(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer store.Close()
+
+	logger := logging.NewDefaultLogger()
+	now := time.Now().UTC()
+
+	// 1. Setup Worker
+	workerID := id.NewWorkerID()
+	nodeID := id.NewNodeID()
+	_ = store.Nodes().Create(ctx, &models.Node{ID: nodeID, Name: "node-1", Status: "READY", CreatedAt: now, UpdatedAt: now})
+	_ = store.Workers().Create(ctx, &models.Worker{ID: workerID, NodeID: nodeID, Status: "READY", Heartbeat: now, CreatedAt: now, UpdatedAt: now})
+
+	cp, err := New(Options{
+		Store:  store,
+		Logger: logger,
+	})
+	if err != nil {
+		t.Fatalf("failed to initialize control plane: %v", err)
+	}
+
+	cmdName, cmdArgs := getEchoCmd("batch-run")
+	jobCfg := &spec.JobConfig{
+		Name:    "cancellable-job",
+		Command: cmdName,
+		Args:    cmdArgs,
+		Timeout: "10m",
+		RetryPolicy: &spec.JobRetrySpec{
+			MaxRetries:    3,
+			BackoffPeriod: "2s",
+		},
+	}
+
+	dispatcher := scheduler.NewInProcessDispatcher()
+	dispatcher.RegisterWorkerHandler(workerID, func(ctx context.Context, req *v1.TaskAssignmentRequest) error {
+		return nil
+	})
+
+	// 2. Submit Job
+	runRes, err := cp.RunJob(ctx, jobCfg, dispatcher)
+	if err != nil {
+		t.Fatalf("RunJob failed: %v", err)
+	}
+
+	// 3. Test Cancellation
+	if err := cp.CancelJob(ctx, "cancellable-job"); err != nil {
+		t.Fatalf("CancelJob failed: %v", err)
+	}
+
+	inspectRes, err := cp.InspectJob(ctx, "cancellable-job")
+	if err != nil {
+		t.Fatalf("InspectJob failed: %v", err)
+	}
+	if inspectRes.Job.State != models.JobStateCancelled {
+		t.Fatalf("expected CANCELLED state, got %s", inspectRes.Job.State)
+	}
+
+	// 4. Test Retry on Failed Job
+	// Mark a job as FAILED
+	dbJob, _ := store.Jobs().Get(ctx, runRes.JobID)
+	dbJob.Status = string(models.JobStateFailed)
+	jobRec, _ := models.JobFromModel(dbJob)
+	jobRec.State = models.JobStateFailed
+	specJSON, _ := jobRec.ToSpecJSON()
+	dbJob.SpecJSON = specJSON
+	_ = store.Jobs().Update(ctx, dbJob)
+
+	retryRes, err := cp.RetryJob(ctx, "cancellable-job", dispatcher)
+	if err != nil {
+		t.Fatalf("RetryJob failed: %v", err)
+	}
+
+	if retryRes.State != models.JobStateAssigned {
+		t.Fatalf("expected ASSIGNED state after retry, got %s", retryRes.State)
+	}
+
+	updatedJob, err := cp.InspectJob(ctx, "cancellable-job")
+	if err != nil {
+		t.Fatalf("failed to inspect retried job: %v", err)
+	}
+	if updatedJob.Job.RetryCount != 1 {
+		t.Fatalf("expected retry count 1, got %d", updatedJob.Job.RetryCount)
+	}
+}
+
 func TestJobSchedulerIntegration_RunJob(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, ":memory:")

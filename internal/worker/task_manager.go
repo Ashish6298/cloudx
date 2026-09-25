@@ -38,6 +38,7 @@ type TaskAssignment struct {
 	Args          []string                `json:"args,omitempty"`
 	Environment   map[string]string       `json:"environment,omitempty"`
 	WorkingDir    string                  `json:"working_dir,omitempty"`
+	Timeout       time.Duration           `json:"timeout,omitempty"`
 	RestartPolicy models.RestartPolicy    `json:"restart_policy,omitempty"`
 	HealthCheck   *spec.HealthCheckConfig `json:"health_check,omitempty"`
 }
@@ -155,7 +156,14 @@ func (tm *TaskManager) AssignTask(ctx context.Context, assignment TaskAssignment
 		return ErrTaskAlreadyExists
 	}
 
-	taskCtx, cancel := context.WithCancel(context.Background())
+	var taskCtx context.Context
+	var cancel context.CancelFunc
+	if assignment.Timeout > 0 {
+		taskCtx, cancel = context.WithTimeout(context.Background(), assignment.Timeout)
+	} else {
+		taskCtx, cancel = context.WithCancel(context.Background())
+	}
+
 	task := &ManagedTask{
 		Assignment: assignment,
 		State:      models.TaskStatePending,
