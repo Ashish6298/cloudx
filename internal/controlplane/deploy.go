@@ -449,6 +449,197 @@ func (cp *ControlPlane) deployNewVersionFromCurrentSpec(ctx context.Context, svc
 	return cp.DeployService(ctx, &svcConfig, dispatcher)
 }
 
+// RollbackResult details the outcome of rolling back a service.
+type RollbackResult struct {
+	ServiceID            id.ID                         `json:"service_id"`
+	ServiceName          string                        `json:"service_name"`
+	PreviousDeploymentID id.ID                         `json:"previous_deployment_id"`
+	PreviousVersion      string                        `json:"previous_version"`
+	TargetDeploymentID   id.ID                         `json:"target_deployment_id"`
+	TargetVersion        string                        `json:"target_version"`
+	Replicas             int                           `json:"replicas"`
+	Status               string                        `json:"status"`
+	Tasks                []*scheduler.AssignmentResult `json:"tasks,omitempty"`
+	RolledBackAt         time.Time                     `json:"rolled_back_at"`
+}
+
+// RollbackService rolls back a service to a known previous deployment.
+// If targetVersionOrID is empty, it selects the immediate previous deployment.
+// It updates the desired service state to point directly to that historical immutable deployment
+// without creating a fake reverse deployment record, and records a ROLLBACK_INITIATED / SERVICE_ROLLED_BACK event.
+func (cp *ControlPlane) RollbackService(ctx context.Context, serviceNameOrID string, targetVersionOrID string, dispatcher scheduler.Dispatcher) (*RollbackResult, error) {
+	if strings.TrimSpace(serviceNameOrID) == "" {
+		return nil, fmt.Errorf("service name or ID is required")
+	}
+
+	store := cp.StateManager.Store()
+	if store == nil {
+		return nil, fmt.Errorf("state store is not available")
+	}
+
+	inspectRes, err := cp.InspectService(ctx, serviceNameOrID)
+	if err != nil {
+		return nil, err
+	}
+
+	svc := inspectRes.Service
+	deployments := inspectRes.Deployments
+	if len(deployments) < 2 && targetVersionOrID == "" {
+		return nil, fmt.Errorf("service '%s' has no previous deployment to roll back to (total deployments: %d)", svc.Name, len(deployments))
+	}
+
+	// Identify currently active deployment
+	var currentActiveDep *models.Deployment
+	for _, d := range deployments {
+		if d.Status == string(models.DeploymentStatusActive) || d.Status == "RUNNING" || d.Status == string(models.DeploymentStatusInProgress) {
+			currentActiveDep = d
+			break
+		}
+	}
+	if currentActiveDep == nil && len(deployments) > 0 {
+		currentActiveDep = deployments[0]
+	}
+
+	var targetDep *models.Deployment
+	if targetVersionOrID != "" {
+		// Lookup specific deployment by version or ID
+		for _, d := range deployments {
+			if strings.EqualFold(d.Version, targetVersionOrID) || d.ID.String() == targetVersionOrID {
+				targetDep = d
+				break
+			}
+		}
+		if targetDep == nil {
+			return nil, fmt.Errorf("target rollback deployment '%s' not found for service '%s'", targetVersionOrID, svc.Name)
+		}
+		if currentActiveDep != nil && targetDep.ID == currentActiveDep.ID {
+			return nil, fmt.Errorf("deployment '%s' (version %s) is already the active deployment for service '%s'", targetDep.ID, targetDep.Version, svc.Name)
+		}
+	} else {
+		// Pick the most recent historical deployment that is not the currently active one
+		for _, d := range deployments {
+			if currentActiveDep != nil && d.ID == currentActiveDep.ID {
+				continue
+			}
+			targetDep = d
+			break
+		}
+	}
+
+	if targetDep == nil {
+		return nil, fmt.Errorf("no suitable previous deployment found to roll back service '%s'", svc.Name)
+	}
+
+	immTargetDep, err := models.DeploymentFromModel(targetDep)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse target deployment spec: %w", err)
+	}
+
+	now := time.Now().UTC()
+
+	// Update service desired state to match target deployment snapshot
+	svc.SpecJSON = targetDep.SpecJSON
+	svc.Runtime = immTargetDep.Config.Runtime
+	svc.Command = immTargetDep.Config.Command
+	if immTargetDep.Config.Replicas > 0 {
+		svc.Replicas = immTargetDep.Config.Replicas
+	}
+	svc.Status = "ROLLING_BACK"
+	svc.UpdatedAt = now
+
+	if err := store.Services().Update(ctx, svc); err != nil {
+		return nil, fmt.Errorf("failed to update service desired state for rollback: %w", err)
+	}
+
+	// Mark former active deployment as ROLLED_BACK / SUPERCEDED, target deployment as ACTIVE
+	for _, d := range deployments {
+		if d.ID == targetDep.ID {
+			d.Status = string(models.DeploymentStatusActive)
+			d.UpdatedAt = now
+			_ = store.Deployments().Update(ctx, d)
+		} else if currentActiveDep != nil && d.ID == currentActiveDep.ID {
+			d.Status = string(models.DeploymentStatusRolledBack)
+			d.UpdatedAt = now
+			_ = store.Deployments().Update(ctx, d)
+		} else if d.Status != string(models.DeploymentStatusSuperceded) && d.Status != string(models.DeploymentStatusRolledBack) {
+			d.Status = string(models.DeploymentStatusSuperceded)
+			d.UpdatedAt = now
+			_ = store.Deployments().Update(ctx, d)
+		}
+	}
+
+	// Trigger reconciliation loop to converge cluster back to target deployment tasks
+	reconciler := cp.Reconciler
+	if dispatcher != nil {
+		reconciler.SetDispatcher(dispatcher)
+	}
+
+	_, err = reconciler.ReconcileAll(ctx)
+	if err != nil {
+		cp.logger.Warn("Reconciliation during rollback warning: %v", err)
+	}
+
+	// Fetch active tasks assigned to the target rollback deployment
+	allTasks, _ := store.Tasks().ListByService(ctx, svc.ID)
+	var activeTasks []*scheduler.AssignmentResult
+	for _, t := range allTasks {
+		if t.DeploymentID == targetDep.ID && t.State != string(models.TaskStateStopped) && t.State != string(models.TaskStateFailed) && t.State != string(models.TaskStateLost) {
+			activeTasks = append(activeTasks, &scheduler.AssignmentResult{
+				TaskID:    t.ID,
+				WorkerID:  t.WorkerID,
+				State:     models.TaskState(t.State),
+				Timestamp: t.UpdatedAt,
+			})
+		}
+	}
+
+	svcStatus := "RUNNING"
+	if len(activeTasks) < svc.Replicas {
+		if len(activeTasks) == 0 && svc.Replicas > 0 {
+			svcStatus = "FAILED"
+		} else {
+			svcStatus = "DEGRADED"
+		}
+	}
+	if svc.Replicas == 0 {
+		svcStatus = "STOPPED"
+	}
+
+	svc.Status = svcStatus
+	svc.UpdatedAt = time.Now().UTC()
+	_ = store.Services().Update(ctx, svc)
+
+	prevDepID := id.ID("")
+	prevVersion := ""
+	if currentActiveDep != nil {
+		prevDepID = currentActiveDep.ID
+		prevVersion = currentActiveDep.Version
+	}
+
+	// Append rollback audit event
+	_ = store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "SERVICE_ROLLED_BACK",
+		Source:    "controlplane",
+		EntityID:  svc.ID,
+		Payload:   fmt.Sprintf(`{"service":"%s","from_version":"%s","from_deployment":"%s","to_version":"%s","to_deployment":"%s","replicas":%d,"active":%d,"status":"%s"}`, svc.Name, prevVersion, prevDepID, targetDep.Version, targetDep.ID, svc.Replicas, len(activeTasks), svcStatus),
+		CreatedAt: now,
+	})
+
+	return &RollbackResult{
+		ServiceID:            svc.ID,
+		ServiceName:          svc.Name,
+		PreviousDeploymentID: prevDepID,
+		PreviousVersion:      prevVersion,
+		TargetDeploymentID:   targetDep.ID,
+		TargetVersion:        targetDep.Version,
+		Replicas:             svc.Replicas,
+		Status:               svcStatus,
+		Tasks:                activeTasks,
+		RolledBackAt:         now,
+	}, nil
+}
+
 // ServiceInspectResult holds full inspection details for a service.
 type ServiceInspectResult struct {
 	Service     *models.Service      `json:"service"`

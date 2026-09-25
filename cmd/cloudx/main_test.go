@@ -283,6 +283,22 @@ services:
 	if !strings.Contains(depListV2Out, "v1") || !strings.Contains(depListV2Out, "v2") {
 		t.Fatalf("expected both v1 and v2 deployments in listing, got: %s", depListV2Out)
 	}
+
+	// 10. cloudx rollback web-api (Rollback v2 -> v1)
+	rollbackCmd := newRootCmd()
+	rollbackBuf := new(bytes.Buffer)
+	rollbackCmd.SetOut(rollbackBuf)
+	rollbackCmd.SetErr(rollbackBuf)
+	rollbackCmd.SetArgs([]string{"--storage-path", tempDir, "rollback", "web-api"})
+
+	if err := rollbackCmd.Execute(); err != nil {
+		t.Fatalf("rollback command failed: %v", err)
+	}
+
+	rollbackOut := rollbackBuf.String()
+	if !strings.Contains(rollbackOut, "rolled back successfully") || !strings.Contains(rollbackOut, "To Version:      v1") {
+		t.Fatalf("expected rollback success output to v1, got: %s", rollbackOut)
+	}
 }
 
 func TestFailSimulationCLI(t *testing.T) {

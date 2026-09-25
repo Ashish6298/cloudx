@@ -8,7 +8,9 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
+	"github.com/cloudx-org/cloudx/internal/controlplane"
 	"github.com/cloudx-org/cloudx/internal/state/models"
 	"github.com/cloudx-org/cloudx/internal/state/sqlite"
 	"github.com/spf13/cobra"
@@ -233,3 +235,74 @@ func newDeploymentInspectCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output deployment inspection as JSON")
 	return cmd
 }
+
+func newRollbackCmd() *cobra.Command {
+	var toVersionOrID string
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "rollback <service-name-or-id> [target-version-or-id]",
+		Short: "Roll back a service to a previous immutable deployment version",
+		Long: `Roll back a service to a known historical deployment version (e.g. cloudx rollback api or cloudx rollback api v1).
+The desired state is updated directly to the previous immutable deployment record without generating a synthetic reverse deployment.`,
+		Args: cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serviceNameOrID := args[0]
+			if len(args) > 1 {
+				toVersionOrID = args[1]
+			}
+
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to connect to cluster store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logging.NewDefaultLogger(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "Rolling back service '%s'...\n\n", serviceNameOrID)
+
+			res, err := cp.RollbackService(ctx, serviceNameOrID, toVersionOrID, nil)
+			if err != nil {
+				return fmt.Errorf("rollback failed: %w", err)
+			}
+
+			if jsonOutput {
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(res)
+			}
+
+			fmt.Fprintf(out, " [SUCCESS] Service '%s' rolled back successfully\n", res.ServiceName)
+			fmt.Fprintf(out, "   From Version:    %s (%s)\n", res.PreviousVersion, res.PreviousDeploymentID)
+			fmt.Fprintf(out, "   To Version:      %s (%s)\n", res.TargetVersion, res.TargetDeploymentID)
+			fmt.Fprintf(out, "   Replicas:        %d/%d active\n", len(res.Tasks), res.Replicas)
+			fmt.Fprintf(out, "   Status:          %s\n", res.Status)
+			fmt.Fprintf(out, "   Rolled Back At:  %s\n\n", res.RolledBackAt.Format(time.RFC3339))
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&toVersionOrID, "to", "", "Target deployment version or ID to roll back to")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output rollback result as JSON")
+	return cmd
+}
+
