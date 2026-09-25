@@ -102,20 +102,20 @@ func TestClusterCommands(t *testing.T) {
 		t.Fatalf("expected initialization success, got: %s", initOut)
 	}
 
-	// 2. cluster status
+	// 2. cluster status / cloudx status
 	statusCmd := newRootCmd()
 	statusBuf := new(bytes.Buffer)
 	statusCmd.SetOut(statusBuf)
 	statusCmd.SetErr(statusBuf)
 
-	statusCmd.SetArgs([]string{"--storage-path", tempDir, "cluster", "status"})
+	statusCmd.SetArgs([]string{"--storage-path", tempDir, "status"})
 	if err := statusCmd.Execute(); err != nil {
 		t.Fatalf("cluster status failed: %v", err)
 	}
 
 	statusOut := statusBuf.String()
-	if !strings.Contains(statusOut, "Registered Nodes:") && !strings.Contains(statusOut, "Cluster Status:") {
-		t.Fatalf("expected cluster status output, got: %s", statusOut)
+	if !strings.Contains(statusOut, "CLOUDX CLUSTER") || !strings.Contains(statusOut, "Control Plane:") || !strings.Contains(statusOut, "HEALTH") {
+		t.Fatalf("expected cluster status overview, got: %s", statusOut)
 	}
 
 	// 3. cluster nodes
@@ -509,5 +509,160 @@ func TestServiceLogsCLI(t *testing.T) {
 		t.Fatalf("expected JSON log output, got: %s", jsonLogsBuf.String())
 	}
 }
+
+func TestClusterStatusOverviewCLI(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// 1. Initialize cluster
+	initCmd := newRootCmd()
+	initBuf := new(bytes.Buffer)
+	initCmd.SetOut(initBuf)
+	initCmd.SetErr(initBuf)
+	initCmd.SetArgs([]string{"--storage-path", tempDir, "cluster", "init"})
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("cluster init failed: %v", err)
+	}
+
+	// 2. Open store and seed realistic topology: 2 workers, 2 services, 1 job, 3 tasks (2 healthy, 1 degraded)
+	ctx := context.Background()
+	dbPath := filepath.Join(tempDir, "cloudx.db")
+	store, err := sqlite.Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+
+	now := time.Now().UTC()
+	_ = store.Nodes().Create(ctx, &models.Node{
+		ID:        "desktop-node",
+		Name:      "desktop",
+		Address:   "127.0.0.1:7002",
+		Status:    "READY",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	w1 := id.NewWorkerID()
+	w2 := id.NewWorkerID()
+	_ = store.Workers().Create(ctx, &models.Worker{
+		ID:        w1,
+		NodeID:    "local-node",
+		Address:   "127.0.0.1:7001",
+		Status:    "READY",
+		Heartbeat: now,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	_ = store.Workers().Create(ctx, &models.Worker{
+		ID:        w2,
+		NodeID:    "desktop-node",
+		Address:   "127.0.0.1:7002",
+		Status:    "READY",
+		Heartbeat: now,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	s1 := id.NewServiceID()
+	s2 := id.NewServiceID()
+	_ = store.Services().Create(ctx, &models.Service{
+		ID:        s1,
+		Name:      "api-gateway",
+		Replicas:  2,
+		Runtime:   "native",
+		Command:   "echo api",
+		Status:    "RUNNING",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	_ = store.Services().Create(ctx, &models.Service{
+		ID:        s2,
+		Name:      "cache-service",
+		Replicas:  1,
+		Runtime:   "native",
+		Command:   "echo cache",
+		Status:    "RUNNING",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	j1 := id.NewJobID()
+	_ = store.Jobs().Create(ctx, &models.Job{
+		ID:        j1,
+		Name:      "db-backup",
+		Command:   "backup.sh",
+		Status:    "COMPLETED",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	// Tasks
+	_ = store.Tasks().Create(ctx, &models.Task{
+		ID:        id.NewTaskID(),
+		ServiceID: s1,
+		WorkerID:  w1,
+		State:     "RUNNING",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	_ = store.Tasks().Create(ctx, &models.Task{
+		ID:        id.NewTaskID(),
+		ServiceID: s1,
+		WorkerID:  w2,
+		State:     "HEALTHY",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	_ = store.Tasks().Create(ctx, &models.Task{
+		ID:        id.NewTaskID(),
+		ServiceID: s2,
+		WorkerID:  w1,
+		State:     "UNHEALTHY",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	_ = store.Close()
+
+	// 3. Test `cloudx status` terminal output
+	statusCmd := newRootCmd()
+	statusBuf := new(bytes.Buffer)
+	statusCmd.SetOut(statusBuf)
+	statusCmd.SetErr(statusBuf)
+	statusCmd.SetArgs([]string{"--storage-path", tempDir, "status"})
+
+	if err := statusCmd.Execute(); err != nil {
+		t.Fatalf("cloudx status command failed: %v", err)
+	}
+
+	outStr := statusBuf.String()
+	if !strings.Contains(outStr, "CLOUDX CLUSTER") {
+		t.Fatalf("expected 'CLOUDX CLUSTER' heading, got:\n%s", outStr)
+	}
+	if !strings.Contains(outStr, "Workers:       2") || !strings.Contains(outStr, "Services:      2") || !strings.Contains(outStr, "Jobs:          1") {
+		t.Fatalf("expected cluster tallies, got:\n%s", outStr)
+	}
+	if !strings.Contains(outStr, "Healthy:       2") || !strings.Contains(outStr, "Degraded:      1") || !strings.Contains(outStr, "Failed:        0") {
+		t.Fatalf("expected health breakdown, got:\n%s", outStr)
+	}
+	if !strings.Contains(outStr, "NODE") || !strings.Contains(outStr, "CPU") || !strings.Contains(outStr, "MEMORY") {
+		t.Fatalf("expected node summary table, got:\n%s", outStr)
+	}
+
+	// 4. Test `cloudx status --json`
+	jsonStatusCmd := newRootCmd()
+	jsonStatusBuf := new(bytes.Buffer)
+	jsonStatusCmd.SetOut(jsonStatusBuf)
+	jsonStatusCmd.SetErr(jsonStatusBuf)
+	jsonStatusCmd.SetArgs([]string{"--storage-path", tempDir, "status", "--json"})
+
+	if err := jsonStatusCmd.Execute(); err != nil {
+		t.Fatalf("cloudx status --json command failed: %v", err)
+	}
+
+	jsonStr := jsonStatusBuf.String()
+	if !strings.Contains(jsonStr, `"workers": 2`) || !strings.Contains(jsonStr, `"services": 2`) {
+		t.Fatalf("expected valid JSON cluster status, got:\n%s", jsonStr)
+	}
+}
+
 
 
