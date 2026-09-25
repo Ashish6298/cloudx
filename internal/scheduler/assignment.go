@@ -21,14 +21,16 @@ type Dispatcher interface {
 
 // TaskSpec specifies execution parameters for a task workload.
 type TaskSpec struct {
-	Command       string                  `json:"command"`
-	Args          []string                `json:"args,omitempty"`
-	Environment   map[string]string       `json:"environment,omitempty"`
-	WorkingDir    string                  `json:"working_dir,omitempty"`
-	Runtime       string                  `json:"runtime,omitempty"`
-	RestartPolicy models.RestartPolicy    `json:"restart_policy,omitempty"`
-	HealthCheck   *spec.HealthCheckConfig `json:"health_check,omitempty"`
-	SpecJSON      string                  `json:"spec_json,omitempty"`
+	Command         string                  `json:"command"`
+	Args            []string                `json:"args,omitempty"`
+	Environment     map[string]string       `json:"environment,omitempty"`
+	WorkingDir      string                  `json:"working_dir,omitempty"`
+	Runtime         string                  `json:"runtime,omitempty"`
+	RestartPolicy   models.RestartPolicy    `json:"restart_policy,omitempty"`
+	HealthCheck     *spec.HealthCheckConfig `json:"health_check,omitempty"`
+	SpecJSON        string                  `json:"spec_json,omitempty"`
+	// RequiredVolumes names volumes the task needs; passed through to scheduling constraints.
+	RequiredVolumes []string                `json:"required_volumes,omitempty"`
 }
 
 // AssignOptions configures task assignment execution.
@@ -96,6 +98,11 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 	} else {
 		opts.Requirements.TaskID = opts.TaskID
 	}
+	// If the task spec carries volume requirements but the caller didn't set them on
+	// Requirements directly, propagate them now so the scheduler can enforce the constraint.
+	if len(opts.Spec.RequiredVolumes) > 0 && len(opts.Requirements.RequiredVolumes) == 0 {
+		opts.Requirements.RequiredVolumes = opts.Spec.RequiredVolumes
+	}
 
 	// 1. Fetch current workers from cluster state store
 	workers, err := ac.store.Workers().List(ctx)
@@ -119,6 +126,26 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 		}
 	}
 
+	// Fetch volumes to compute per-worker volume ownership for storage-aware scheduling.
+	// A local volume is "owned" by the worker whose WorkerID is recorded on the VolumeRecord,
+	// OR by any worker when WorkerID is empty (volume was created without a specific binding).
+	workerVolumeNames := make(map[id.ID][]string)
+	if volumes, volErr := ac.store.Volumes().List(ctx); volErr == nil {
+		for _, v := range volumes {
+			if v.WorkerID != "" {
+				// Volume is pinned to a specific worker
+				workerVolumeNames[v.WorkerID] = append(workerVolumeNames[v.WorkerID], v.Name)
+			} else {
+				// Volume has no worker binding — expose it on all known workers.
+				// (For local driver volumes, the directory lives on the node running the server;
+				// treat this as universally accessible in single-node configurations.)
+				for _, w := range workers {
+					workerVolumeNames[w.ID] = append(workerVolumeNames[w.ID], v.Name)
+				}
+			}
+		}
+	}
+
 	// Build WorkerCapacity snapshots
 	capacities := make([]*WorkerCapacity, len(workers))
 	workerMap := make(map[id.ID]*models.Worker)
@@ -137,6 +164,8 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 			MemoryAllocated:     int64(workerTaskCount[w.ID]) * 512 * 1024 * 1024,
 			RuntimeCapabilities: []string{"native", "docker"},
 			TaskCount:           workerTaskCount[w.ID],
+			// Storage affinity: populate volumes that physically reside on this worker
+			VolumeNames:         workerVolumeNames[w.ID],
 		}
 	}
 
