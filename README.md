@@ -163,7 +163,12 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 33**: Versioned Deployment *([PHASE_33_COMPLETION_REPORT.md](./docs/reports/PHASE_33_COMPLETION_REPORT.md))*
   - [x] **Phase 34**: Rolling Deployment *([PHASE_34_COMPLETION_REPORT.md](./docs/reports/PHASE_34_COMPLETION_REPORT.md))*
   - [x] **Phase 35**: Rollback Strategy *([PHASE_35_COMPLETION_REPORT.md](./docs/reports/PHASE_35_COMPLETION_REPORT.md))*
-- [ ] **Milestones 10–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+- [ ] **Milestone 10: Events, Logs and Auditability** (Phases 36–39)
+  - [x] **Phase 36**: Event System *([PHASE_36_COMPLETION_REPORT.md](./docs/reports/PHASE_36_COMPLETION_REPORT.md))*
+  - [ ] **Phase 37**: Event CLI
+  - [ ] **Phase 38**: Log Capture
+  - [ ] **Phase 39**: Log CLI
+- [ ] **Milestones 11–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
 
 
 

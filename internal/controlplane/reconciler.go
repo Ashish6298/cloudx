@@ -181,6 +181,16 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 				t.UpdatedAt = time.Now().UTC()
 				_ = store.Tasks().Update(ctx, t)
 				summary.OrphanedRecovered++
+
+				// Append TASK_RESCHEDULED event
+				_ = store.Events().Append(ctx, &models.Event{
+					ID:        id.NewEventID(),
+					Type:      "TASK_RESCHEDULED",
+					Source:    "reconciler",
+					EntityID:  t.ID,
+					Payload:   fmt.Sprintf(`{"service_id":"%s","worker_id":"%s","worker_status":"%s","reason":"orphaned_worker"}`, svc.ID, t.WorkerID, workerStatus),
+					CreatedAt: time.Now().UTC(),
+				})
 				continue
 			}
 

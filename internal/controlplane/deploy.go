@@ -82,6 +82,14 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		if err := store.Services().Create(ctx, svcRecord); err != nil {
 			return nil, fmt.Errorf("failed to create service record: %w", err)
 		}
+		_ = store.Events().Append(ctx, &models.Event{
+			ID:        id.NewEventID(),
+			Type:      "SERVICE_CREATED",
+			Source:    "controlplane",
+			EntityID:  serviceID,
+			Payload:   fmt.Sprintf(`{"service":"%s","replicas":%d,"runtime":"%s"}`, svcConfig.Name, replicas, svcConfig.Runtime),
+			CreatedAt: now,
+		})
 	} else {
 		svcRecord, err := store.Services().Get(ctx, serviceID)
 		if err != nil {
@@ -214,6 +222,16 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 	if err := store.Deployments().Create(ctx, deploymentRecord); err != nil {
 		return nil, fmt.Errorf("failed to create deployment record: %w", err)
 	}
+
+	// Append DEPLOYMENT_STARTED event
+	_ = store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "DEPLOYMENT_STARTED",
+		Source:    "controlplane",
+		EntityID:  deploymentID,
+		Payload:   fmt.Sprintf(`{"service":"%s","version":"%s","service_id":"%s","replicas":%d}`, svcConfig.Name, version, serviceID, replicas),
+		CreatedAt: now,
+	})
 
 	// Supercede previous active deployments for this service
 	prevDeployments, _ := store.Deployments().ListByService(ctx, serviceID)
@@ -616,13 +634,21 @@ func (cp *ControlPlane) RollbackService(ctx context.Context, serviceNameOrID str
 		prevVersion = currentActiveDep.Version
 	}
 
-	// Append rollback audit event
+	// Append rollback audit events
 	_ = store.Events().Append(ctx, &models.Event{
 		ID:        id.NewEventID(),
 		Type:      "SERVICE_ROLLED_BACK",
 		Source:    "controlplane",
 		EntityID:  svc.ID,
 		Payload:   fmt.Sprintf(`{"service":"%s","from_version":"%s","from_deployment":"%s","to_version":"%s","to_deployment":"%s","replicas":%d,"active":%d,"status":"%s"}`, svc.Name, prevVersion, prevDepID, targetDep.Version, targetDep.ID, svc.Replicas, len(activeTasks), svcStatus),
+		CreatedAt: now,
+	})
+	_ = store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "DEPLOYMENT_ROLLED_BACK",
+		Source:    "controlplane",
+		EntityID:  targetDep.ID,
+		Payload:   fmt.Sprintf(`{"service":"%s","service_id":"%s","target_version":"%s","previous_deployment":"%s"}`, svc.Name, svc.ID, targetDep.Version, prevDepID),
 		CreatedAt: now,
 	})
 

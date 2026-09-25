@@ -196,6 +196,16 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 		}
 	}
 
+	// 5. Append TASK_ASSIGNED audit event
+	_ = ac.store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "TASK_ASSIGNED",
+		Source:    "assignment_coordinator",
+		EntityID:  opts.TaskID,
+		Payload:   fmt.Sprintf(`{"worker_id":"%s","service_id":"%s","deployment_id":"%s","score":%.2f}`, decision.WorkerID, opts.ServiceID, opts.DeploymentID, decision.Score),
+		CreatedAt: now,
+	})
+
 	return &AssignmentResult{
 		TaskID:    opts.TaskID,
 		WorkerID:  decision.WorkerID,

@@ -201,6 +201,16 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 		return nil, status.Errorf(codes.Internal, "failed to persist worker: %v", err)
 	}
 
+	// Append WORKER_REGISTERED audit event
+	_ = s.store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "WORKER_REGISTERED",
+		Source:    "controlplane_api",
+		EntityID:  workerID,
+		Payload:   fmt.Sprintf(`{"node_id":"%s","address":"%s","status":"READY"}`, nodeID, req.Address),
+		CreatedAt: now,
+	})
+
 	return &v1.RegisterWorkerResponse{
 		Accepted:            true,
 		Message:             "Worker registered successfully",
@@ -399,6 +409,35 @@ func (s *Server) ReportTaskStatus(ctx context.Context, req *v1.ReportTaskStatusR
 	task.ExitCode = int(req.ExitCode)
 	if err := s.store.Tasks().Update(ctx, task); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update task status: %v", err)
+	}
+
+	// Append process/task lifecycle event
+	now := time.Now().UTC()
+	var eventType string
+	switch targetState {
+	case models.TaskStateRunning:
+		eventType = "PROCESS_STARTED"
+	case models.TaskStateStopped:
+		eventType = "PROCESS_STOPPED"
+	case models.TaskStateFailed:
+		eventType = "PROCESS_CRASHED"
+	case models.TaskStateCrashLoop:
+		eventType = "TASK_CRASH_LOOP"
+	case models.TaskStateHealthy:
+		eventType = "HEALTH_CHECK_HEALTHY"
+	case models.TaskStateUnhealthy:
+		eventType = "HEALTH_CHECK_FAILED"
+	}
+
+	if eventType != "" {
+		_ = s.store.Events().Append(ctx, &models.Event{
+			ID:        id.NewEventID(),
+			Type:      eventType,
+			Source:    "worker_task_manager",
+			EntityID:  taskID,
+			Payload:   fmt.Sprintf(`{"worker_id":"%s","state":"%s","pid":%d,"exit_code":%d}`, req.WorkerId, req.State, req.Pid, req.ExitCode),
+			CreatedAt: now,
+		})
 	}
 
 	return &v1.ReportTaskStatusResponse{Acknowledged: true}, nil
