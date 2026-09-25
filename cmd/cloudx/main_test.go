@@ -237,3 +237,52 @@ services:
 	}
 }
 
+func TestFailSimulationCLI(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// 1. Initialize cluster
+	initCmd := newRootCmd()
+	initBuf := new(bytes.Buffer)
+	initCmd.SetOut(initBuf)
+	initCmd.SetErr(initBuf)
+	initCmd.SetArgs([]string{"--storage-path", tempDir, "cluster", "init"})
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("cluster init failed: %v", err)
+	}
+
+	// 2. Test fail delay-heartbeat
+	delayCmd := newRootCmd()
+	delayBuf := new(bytes.Buffer)
+	delayCmd.SetOut(delayBuf)
+	delayCmd.SetErr(delayBuf)
+	delayCmd.SetArgs([]string{"--storage-path", tempDir, "fail", "delay-heartbeat", "wrk-123", "--delay", "30s"})
+	// wrk-123 doesn't exist -> expected error
+	_ = delayCmd.Execute()
+
+	// 3. Test fail break-health
+	breakCmd := newRootCmd()
+	breakBuf := new(bytes.Buffer)
+	breakCmd.SetOut(breakBuf)
+	breakCmd.SetErr(breakBuf)
+	breakCmd.SetArgs([]string{"--storage-path", tempDir, "fail", "break-health", "tsk-123", "--reason", "outage"})
+	if err := breakCmd.Execute(); err != nil {
+		t.Fatalf("fail break-health failed: %v", err)
+	}
+	if !strings.Contains(breakBuf.String(), "SIMULATION SUCCESS") {
+		t.Fatalf("expected simulation success output, got: %s", breakBuf.String())
+	}
+
+	// 4. Test fail exhaust-resources
+	resCmd := newRootCmd()
+	resBuf := new(bytes.Buffer)
+	resCmd.SetOut(resBuf)
+	resCmd.SetErr(resBuf)
+	resCmd.SetArgs([]string{"--storage-path", tempDir, "fail", "exhaust-resources", "tsk-123", "-m", "16"})
+	if err := resCmd.Execute(); err != nil {
+		t.Fatalf("fail exhaust-resources failed: %v", err)
+	}
+	if !strings.Contains(resBuf.String(), "SIMULATION SUCCESS") {
+		t.Fatalf("expected resource exhaustion output, got: %s", resBuf.String())
+	}
+}
+
