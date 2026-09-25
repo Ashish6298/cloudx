@@ -337,17 +337,21 @@ func (r *taskRepo) Delete(ctx context.Context, idVal id.ID) error {
 type jobRepo struct{ exec dbExecutor }
 
 func (r *jobRepo) Create(ctx context.Context, j *models.Job) error {
-	query := `INSERT INTO jobs (id, name, command, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := r.exec.ExecContext(ctx, query, j.ID.String(), j.Name, j.Command, j.Status, j.CreatedAt, j.UpdatedAt)
+	specJSON := j.SpecJSON
+	if specJSON == "" {
+		specJSON = "{}"
+	}
+	query := `INSERT INTO jobs (id, name, command, status, spec_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.exec.ExecContext(ctx, query, j.ID.String(), j.Name, j.Command, j.Status, specJSON, j.CreatedAt, j.UpdatedAt)
 	return err
 }
 
 func (r *jobRepo) Get(ctx context.Context, idVal id.ID) (*models.Job, error) {
-	query := `SELECT id, name, command, status, created_at, updated_at FROM jobs WHERE id = ?`
+	query := `SELECT id, name, command, status, spec_json, created_at, updated_at FROM jobs WHERE id = ?`
 	row := r.exec.QueryRowContext(ctx, query, idVal.String())
 	var j models.Job
 	var idStr string
-	if err := row.Scan(&idStr, &j.Name, &j.Command, &j.Status, &j.CreatedAt, &j.UpdatedAt); err != nil {
+	if err := row.Scan(&idStr, &j.Name, &j.Command, &j.Status, &j.SpecJSON, &j.CreatedAt, &j.UpdatedAt); err != nil {
 		return nil, err
 	}
 	j.ID = id.ID(idStr)
@@ -355,7 +359,7 @@ func (r *jobRepo) Get(ctx context.Context, idVal id.ID) (*models.Job, error) {
 }
 
 func (r *jobRepo) List(ctx context.Context) ([]*models.Job, error) {
-	query := `SELECT id, name, command, status, created_at, updated_at FROM jobs ORDER BY created_at ASC`
+	query := `SELECT id, name, command, status, spec_json, created_at, updated_at FROM jobs ORDER BY created_at ASC`
 	rows, err := r.exec.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -366,7 +370,7 @@ func (r *jobRepo) List(ctx context.Context) ([]*models.Job, error) {
 	for rows.Next() {
 		var j models.Job
 		var idStr string
-		if err := rows.Scan(&idStr, &j.Name, &j.Command, &j.Status, &j.CreatedAt, &j.UpdatedAt); err != nil {
+		if err := rows.Scan(&idStr, &j.Name, &j.Command, &j.Status, &j.SpecJSON, &j.CreatedAt, &j.UpdatedAt); err != nil {
 			return nil, err
 		}
 		j.ID = id.ID(idStr)
@@ -377,8 +381,12 @@ func (r *jobRepo) List(ctx context.Context) ([]*models.Job, error) {
 
 func (r *jobRepo) Update(ctx context.Context, j *models.Job) error {
 	j.UpdatedAt = time.Now().UTC()
-	query := `UPDATE jobs SET name = ?, command = ?, status = ?, updated_at = ? WHERE id = ?`
-	_, err := r.exec.ExecContext(ctx, query, j.Name, j.Command, j.Status, j.UpdatedAt, j.ID.String())
+	specJSON := j.SpecJSON
+	if specJSON == "" {
+		specJSON = "{}"
+	}
+	query := `UPDATE jobs SET name = ?, command = ?, status = ?, spec_json = ?, updated_at = ? WHERE id = ?`
+	_, err := r.exec.ExecContext(ctx, query, j.Name, j.Command, j.Status, specJSON, j.UpdatedAt, j.ID.String())
 	return err
 }
 
@@ -392,17 +400,21 @@ func (r *jobRepo) Delete(ctx context.Context, idVal id.ID) error {
 type volumeRepo struct{ exec dbExecutor }
 
 func (r *volumeRepo) Create(ctx context.Context, v *models.Volume) error {
-	query := `INSERT INTO volumes (id, name, worker_id, path, driver, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err := r.exec.ExecContext(ctx, query, v.ID.String(), v.Name, v.WorkerID.String(), v.Path, v.Driver, v.CreatedAt, v.UpdatedAt)
+	specJSON := v.SpecJSON
+	if specJSON == "" {
+		specJSON = "{}"
+	}
+	query := `INSERT INTO volumes (id, name, worker_id, path, driver, spec_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.exec.ExecContext(ctx, query, v.ID.String(), v.Name, v.WorkerID.String(), v.Path, v.Driver, specJSON, v.CreatedAt, v.UpdatedAt)
 	return err
 }
 
 func (r *volumeRepo) Get(ctx context.Context, idVal id.ID) (*models.Volume, error) {
-	query := `SELECT id, name, worker_id, path, driver, created_at, updated_at FROM volumes WHERE id = ?`
+	query := `SELECT id, name, worker_id, path, driver, spec_json, created_at, updated_at FROM volumes WHERE id = ?`
 	row := r.exec.QueryRowContext(ctx, query, idVal.String())
 	var v models.Volume
 	var idStr, wrkIDStr string
-	if err := row.Scan(&idStr, &v.Name, &wrkIDStr, &v.Path, &v.Driver, &v.CreatedAt, &v.UpdatedAt); err != nil {
+	if err := row.Scan(&idStr, &v.Name, &wrkIDStr, &v.Path, &v.Driver, &v.SpecJSON, &v.CreatedAt, &v.UpdatedAt); err != nil {
 		return nil, err
 	}
 	v.ID = id.ID(idStr)
@@ -411,7 +423,7 @@ func (r *volumeRepo) Get(ctx context.Context, idVal id.ID) (*models.Volume, erro
 }
 
 func (r *volumeRepo) List(ctx context.Context) ([]*models.Volume, error) {
-	query := `SELECT id, name, worker_id, path, driver, created_at, updated_at FROM volumes ORDER BY created_at ASC`
+	query := `SELECT id, name, worker_id, path, driver, spec_json, created_at, updated_at FROM volumes ORDER BY created_at ASC`
 	rows, err := r.exec.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -422,7 +434,7 @@ func (r *volumeRepo) List(ctx context.Context) ([]*models.Volume, error) {
 	for rows.Next() {
 		var v models.Volume
 		var idStr, wrkIDStr string
-		if err := rows.Scan(&idStr, &v.Name, &wrkIDStr, &v.Path, &v.Driver, &v.CreatedAt, &v.UpdatedAt); err != nil {
+		if err := rows.Scan(&idStr, &v.Name, &wrkIDStr, &v.Path, &v.Driver, &v.SpecJSON, &v.CreatedAt, &v.UpdatedAt); err != nil {
 			return nil, err
 		}
 		v.ID = id.ID(idStr)
@@ -434,8 +446,12 @@ func (r *volumeRepo) List(ctx context.Context) ([]*models.Volume, error) {
 
 func (r *volumeRepo) Update(ctx context.Context, v *models.Volume) error {
 	v.UpdatedAt = time.Now().UTC()
-	query := `UPDATE volumes SET name = ?, worker_id = ?, path = ?, driver = ?, updated_at = ? WHERE id = ?`
-	_, err := r.exec.ExecContext(ctx, query, v.Name, v.WorkerID.String(), v.Path, v.Driver, v.UpdatedAt, v.ID.String())
+	specJSON := v.SpecJSON
+	if specJSON == "" {
+		specJSON = "{}"
+	}
+	query := `UPDATE volumes SET name = ?, worker_id = ?, path = ?, driver = ?, spec_json = ?, updated_at = ? WHERE id = ?`
+	_, err := r.exec.ExecContext(ctx, query, v.Name, v.WorkerID.String(), v.Path, v.Driver, specJSON, v.UpdatedAt, v.ID.String())
 	return err
 }
 

@@ -31,11 +31,14 @@ type TaskAssignment struct {
 	TaskID        id.ID                   `json:"task_id"`
 	ServiceID     id.ID                   `json:"service_id,omitempty"`
 	ServiceName   string                  `json:"service_name,omitempty"`
+	JobID         id.ID                   `json:"job_id,omitempty"`
+	JobName       string                  `json:"job_name,omitempty"`
 	DeploymentID  id.ID                   `json:"deployment_id,omitempty"`
 	Command       string                  `json:"command"`
 	Args          []string                `json:"args,omitempty"`
 	Environment   map[string]string       `json:"environment,omitempty"`
 	WorkingDir    string                  `json:"working_dir,omitempty"`
+	Timeout       time.Duration           `json:"timeout,omitempty"`
 	RestartPolicy models.RestartPolicy    `json:"restart_policy,omitempty"`
 	HealthCheck   *spec.HealthCheckConfig `json:"health_check,omitempty"`
 }
@@ -153,7 +156,14 @@ func (tm *TaskManager) AssignTask(ctx context.Context, assignment TaskAssignment
 		return ErrTaskAlreadyExists
 	}
 
-	taskCtx, cancel := context.WithCancel(context.Background())
+	var taskCtx context.Context
+	var cancel context.CancelFunc
+	if assignment.Timeout > 0 {
+		taskCtx, cancel = context.WithTimeout(context.Background(), assignment.Timeout)
+	} else {
+		taskCtx, cancel = context.WithCancel(context.Background())
+	}
+
 	task := &ManagedTask{
 		Assignment: assignment,
 		State:      models.TaskStatePending,
@@ -236,6 +246,8 @@ func (tm *TaskManager) executeTask(ctx context.Context, task *ManagedTask) {
 		stdoutWriter = tm.workloadLogger.LogWriter(logs.LogEntry{
 			ServiceID:    task.Assignment.ServiceID,
 			ServiceName:  task.Assignment.ServiceName,
+			JobID:        task.Assignment.JobID,
+			JobName:      task.Assignment.JobName,
 			DeploymentID: task.Assignment.DeploymentID,
 			TaskID:       task.Assignment.TaskID,
 			WorkerID:     tm.workerID,
@@ -244,6 +256,8 @@ func (tm *TaskManager) executeTask(ctx context.Context, task *ManagedTask) {
 		stderrWriter = tm.workloadLogger.LogWriter(logs.LogEntry{
 			ServiceID:    task.Assignment.ServiceID,
 			ServiceName:  task.Assignment.ServiceName,
+			JobID:        task.Assignment.JobID,
+			JobName:      task.Assignment.JobName,
 			DeploymentID: task.Assignment.DeploymentID,
 			TaskID:       task.Assignment.TaskID,
 			WorkerID:     tm.workerID,

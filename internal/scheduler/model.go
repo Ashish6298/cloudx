@@ -26,6 +26,10 @@ type TaskRequirements struct {
 	NodeConstraints map[string]string `json:"node_constraints,omitempty"`
 	AffinityTags    []string          `json:"affinity_tags,omitempty"`
 	Priority        Priority          `json:"priority"`
+	// RequiredVolumes lists the names of CloudX volumes this task must access.
+	// Storage-aware scheduling: the selected worker must own ALL listed volumes.
+	// A task may list zero volumes (no storage constraint).
+	RequiredVolumes []string          `json:"required_volumes,omitempty"`
 }
 
 // WorkerCapacity represents the hardware and runtime profile of a candidate worker.
@@ -42,6 +46,10 @@ type WorkerCapacity struct {
 	NodeLabels          map[string]string `json:"node_labels,omitempty"`
 	Tags                []string          `json:"tags,omitempty"`
 	TaskCount           int               `json:"task_count"`
+	// VolumeNames lists the names of CloudX volumes that physically reside on this worker.
+	// Used for storage-aware scheduling: tasks requiring a local volume are only placed
+	// on the worker that owns the volume.
+	VolumeNames         []string          `json:"volume_names,omitempty"`
 }
 
 // CPUAvailable returns the unallocated CPU cores on this worker.
@@ -134,6 +142,26 @@ func CanFit(worker *WorkerCapacity, req *TaskRequirements) FitResult {
 			workerVal, exists := worker.NodeLabels[k]
 			if !exists || workerVal != v {
 				reasons = append(reasons, fmt.Sprintf("node constraint unmet: '%s=%s' (worker has '%s')", k, v, workerVal))
+			}
+		}
+	}
+
+	// 6. Storage (Volume) Affinity check
+	// A task that requires a local volume MUST run on the worker that owns that volume.
+	// A worker with no volume assignment (VolumeNames is empty) cannot satisfy any
+	// volume requirement, because local volumes are pinned to the filesystem of a
+	// specific node.
+	if len(req.RequiredVolumes) > 0 {
+		workerVolSet := make(map[string]bool, len(worker.VolumeNames))
+		for _, vn := range worker.VolumeNames {
+			workerVolSet[strings.ToLower(vn)] = true
+		}
+		for _, reqVol := range req.RequiredVolumes {
+			if !workerVolSet[strings.ToLower(reqVol)] {
+				reasons = append(reasons, fmt.Sprintf(
+					"volume affinity unmet: task requires volume '%s' but worker '%s' does not own it (worker volumes: %v)",
+					reqVol, worker.WorkerID, worker.VolumeNames,
+				))
 			}
 		}
 	}
