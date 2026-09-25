@@ -2,10 +2,17 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/cloudx-org/cloudx/internal/common/id"
+	"github.com/cloudx-org/cloudx/internal/state/models"
+	"github.com/cloudx-org/cloudx/internal/state/sqlite"
 )
 
 func TestRootCmd(t *testing.T) {
@@ -397,4 +404,110 @@ func TestFailSimulationCLI(t *testing.T) {
 		t.Fatalf("expected resource exhaustion output, got: %s", resBuf.String())
 	}
 }
+
+func TestServiceLogsCLI(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// 1. Initialize cluster
+	initCmd := newRootCmd()
+	initBuf := new(bytes.Buffer)
+	initCmd.SetOut(initBuf)
+	initCmd.SetErr(initBuf)
+	initCmd.SetArgs([]string{"--storage-path", tempDir, "cluster", "init"})
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("cluster init failed: %v", err)
+	}
+
+	// 2. Open store and create active worker + service + task
+	ctx := context.Background()
+	dbPath := filepath.Join(tempDir, "cloudx.db")
+	store, err := sqlite.Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+
+	workerID := id.NewWorkerID()
+	now := time.Now().UTC()
+	_ = store.Workers().Create(ctx, &models.Worker{
+		ID:        workerID,
+		NodeID:    "local-node",
+		Address:   "127.0.0.1:7001",
+		Status:    "READY",
+		Heartbeat: now,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	svcID := id.NewServiceID()
+	depID := id.NewDeploymentID()
+	_ = store.Services().Create(ctx, &models.Service{
+		ID:        svcID,
+		Name:      "log-api",
+		Replicas:  1,
+		Runtime:   "native",
+		Command:   "echo hello-world",
+		Status:    "RUNNING",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	taskID := id.NewTaskID()
+	_ = store.Tasks().Create(ctx, &models.Task{
+		ID:           taskID,
+		ServiceID:    svcID,
+		DeploymentID: depID,
+		WorkerID:     workerID,
+		State:        "RUNNING",
+		PID:          1234,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	_ = store.Close()
+
+	// 3. Write mock log line to disk log file for the created task
+	logDir := filepath.Join(tempDir, "logs")
+	_ = os.MkdirAll(logDir, 0755)
+
+	taskLogFile := filepath.Join(logDir, fmt.Sprintf("%s.log", taskID))
+	logContent := fmt.Sprintf("[%s] [stdout] [%s] [%s] Server booted successfully\n[%s] [stdout] [%s] [%s] Ready to receive traffic\n",
+		time.Now().UTC().Format(time.RFC3339Nano),
+		workerID,
+		depID,
+		time.Now().UTC().Format(time.RFC3339Nano),
+		workerID,
+		depID,
+	)
+	if err := os.WriteFile(taskLogFile, []byte(logContent), 0644); err != nil {
+		t.Fatalf("failed to write task log file: %v", err)
+	}
+
+	// 4. Test cloudx service logs log-api
+	logsCmd := newRootCmd()
+	logsBuf := new(bytes.Buffer)
+	logsCmd.SetOut(logsBuf)
+	logsCmd.SetErr(logsBuf)
+	logsCmd.SetArgs([]string{"--storage-path", tempDir, "service", "logs", "log-api"})
+	if err := logsCmd.Execute(); err != nil {
+		t.Fatalf("service logs failed: %v", err)
+	}
+
+	logsOut := logsBuf.String()
+	if !strings.Contains(logsOut, "Server booted successfully") || !strings.Contains(logsOut, "Ready to receive traffic") {
+		t.Fatalf("expected log lines in output, got: %s", logsOut)
+	}
+
+	// 5. Test cloudx service logs log-api --json
+	jsonLogsCmd := newRootCmd()
+	jsonLogsBuf := new(bytes.Buffer)
+	jsonLogsCmd.SetOut(jsonLogsBuf)
+	jsonLogsCmd.SetErr(jsonLogsBuf)
+	jsonLogsCmd.SetArgs([]string{"--storage-path", tempDir, "service", "logs", "log-api", "--json"})
+	if err := jsonLogsCmd.Execute(); err != nil {
+		t.Fatalf("service logs --json failed: %v", err)
+	}
+	if !strings.Contains(jsonLogsBuf.String(), `"message": "Server booted successfully"`) && !strings.Contains(jsonLogsBuf.String(), `"message":"Server booted successfully"`) {
+		t.Fatalf("expected JSON log output, got: %s", jsonLogsBuf.String())
+	}
+}
+
 

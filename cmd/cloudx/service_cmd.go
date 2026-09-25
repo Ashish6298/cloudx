@@ -4,15 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
 	"github.com/cloudx-org/cloudx/internal/controlplane"
+	"github.com/cloudx-org/cloudx/internal/logs"
 	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state/sqlite"
 	"github.com/spf13/cobra"
@@ -157,12 +160,13 @@ func newServiceCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "service",
 		Short: "Manage and inspect CloudX services",
-		Long:  `List running services, inspect deployment details, configurations, and replicas.`,
+		Long:  `List running services, inspect deployment details, configurations, replicas, and stream logs.`,
 	}
 
 	cmd.AddCommand(newServiceListCmd())
 	cmd.AddCommand(newServiceInspectCmd())
 	cmd.AddCommand(newServiceScaleCmd())
+	cmd.AddCommand(newServiceLogsCmd())
 	return cmd
 }
 
@@ -381,4 +385,141 @@ func newServiceScaleCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output scale result as JSON")
 	return cmd
 }
+
+func newServiceLogsCmd() *cobra.Command {
+	var (
+		follow         bool
+		tailLines      int
+		taskIDStr      string
+		deploymentIDStr string
+		workerIDStr    string
+		sinceStr       string
+		jsonOutput     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "logs <service-name-or-id>",
+		Short: "Fetch and stream stdout/stderr logs from CloudX workloads",
+		Long: `Inspect and tail stdout/stderr output from processes managed by CloudX.
+Logs are correlated with service, deployment, task, and worker metadata.
+
+Examples:
+  cloudx service logs api
+  cloudx service logs api --follow
+  cloudx service logs api --tail 50
+  cloudx service logs api --task task-abc123
+  cloudx service logs api --deployment dep-xyz789`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serviceNameOrID := args[0]
+			out := cmd.OutOrStdout()
+
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+			ctx, cancel := context.WithCancel(cmd.Context())
+			defer cancel()
+
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to connect to cluster store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logging.NewDefaultLogger(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			var sinceTime time.Time
+			if sinceStr != "" {
+				if d, err := time.ParseDuration(sinceStr); err == nil {
+					sinceTime = time.Now().UTC().Add(-d)
+				} else if t, err := time.Parse(time.RFC3339, sinceStr); err == nil {
+					sinceTime = t
+				} else {
+					return fmt.Errorf("invalid --since format '%s': expected duration (e.g. 1h, 30m) or RFC3339 timestamp", sinceStr)
+				}
+			}
+
+			filter := logs.LogFilter{
+				DeploymentID: id.ID(deploymentIDStr),
+				TaskID:       id.ID(taskIDStr),
+				WorkerID:     id.ID(workerIDStr),
+				Since:        sinceTime,
+				TailLines:    tailLines,
+				Follow:       follow,
+			}
+
+			entries, taskIDs, err := cp.GetServiceLogs(ctx, serviceNameOrID, filter)
+			if err != nil {
+				return fmt.Errorf("failed to fetch service logs: %w", err)
+			}
+
+			// Format and display initial historical entries
+			for _, entry := range entries {
+				printLogEntry(out, entry, jsonOutput)
+			}
+
+			// If follow requested, subscribe to live logs
+			if follow {
+				logger := logs.DefaultWorkloadLogger()
+				if cfg.Storage.Path != "" {
+					logger.SetBaseDir(filepath.Join(cfg.Storage.Path, "logs"))
+				}
+
+				liveCh := logger.SubscribeFilter(ctx, filter, taskIDs)
+				for {
+					select {
+					case <-ctx.Done():
+						return nil
+					case entry, ok := <-liveCh:
+						if !ok {
+							return nil
+						}
+						printLogEntry(out, entry, jsonOutput)
+					}
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Follow log stream in real time")
+	cmd.Flags().IntVarP(&tailLines, "tail", "n", 0, "Number of lines to show from the end of the logs")
+	cmd.Flags().StringVar(&taskIDStr, "task", "", "Filter logs by specific task ID")
+	cmd.Flags().StringVar(&deploymentIDStr, "deployment", "", "Filter logs by specific deployment ID")
+	cmd.Flags().StringVar(&workerIDStr, "worker", "", "Filter logs by specific worker ID")
+	cmd.Flags().StringVar(&sinceStr, "since", "", "Filter logs after duration (e.g. 1h, 15m) or RFC3339 timestamp")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output log entries as JSON lines")
+
+	return cmd
+}
+
+func printLogEntry(w io.Writer, entry logs.LogEntry, asJSON bool) {
+	if asJSON {
+		b, _ := json.Marshal(entry)
+		_, _ = fmt.Fprintln(w, string(b))
+		return
+	}
+
+	ts := entry.Timestamp.Format(time.RFC3339)
+	prefix := fmt.Sprintf("[%s]", ts)
+	if entry.TaskID != "" {
+		prefix = fmt.Sprintf("%s [%s]", prefix, entry.TaskID)
+	}
+	if entry.Stream != "" {
+		prefix = fmt.Sprintf("%s [%s]", prefix, entry.Stream)
+	}
+	_, _ = fmt.Fprintf(w, "%s %s\n", prefix, entry.Message)
+}
+
 

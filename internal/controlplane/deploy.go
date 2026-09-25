@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/cloudx-org/cloudx/internal/common/id"
+	"github.com/cloudx-org/cloudx/internal/logs"
 	"github.com/cloudx-org/cloudx/internal/scheduler"
 	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state/models"
@@ -791,4 +793,37 @@ func (cp *ControlPlane) ScaleService(ctx context.Context, nameOrID string, repli
 		UpdatedAt:        now,
 	}, nil
 }
+
+// GetServiceLogs queries logs for a service, its deployments, or specific tasks.
+func (cp *ControlPlane) GetServiceLogs(ctx context.Context, serviceNameOrID string, filter logs.LogFilter) ([]logs.LogEntry, []id.ID, error) {
+	store := cp.StateManager.Store()
+	if store == nil {
+		return nil, nil, fmt.Errorf("state store is not available")
+	}
+
+	inspectRes, err := cp.InspectService(ctx, serviceNameOrID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	svc := inspectRes.Service
+	filter.ServiceID = svc.ID
+	filter.ServiceName = svc.Name
+
+	// Gather task IDs
+	var taskIDs []id.ID
+	for _, t := range inspectRes.Tasks {
+		taskIDs = append(taskIDs, t.ID)
+	}
+
+	// Read logs from workload logger
+	logger := logs.DefaultWorkloadLogger()
+	if cp.cfg.Storage.Path != "" {
+		logger.SetBaseDir(filepath.Join(cp.cfg.Storage.Path, "logs"))
+	}
+
+	entries := logger.ReadFilteredLogs(filter, taskIDs)
+	return entries, taskIDs, nil
+}
+
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/health"
+	"github.com/cloudx-org/cloudx/internal/logs"
 	"github.com/cloudx-org/cloudx/internal/runtime"
 	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state/models"
@@ -28,6 +30,8 @@ var (
 type TaskAssignment struct {
 	TaskID        id.ID                   `json:"task_id"`
 	ServiceID     id.ID                   `json:"service_id,omitempty"`
+	ServiceName   string                  `json:"service_name,omitempty"`
+	DeploymentID  id.ID                   `json:"deployment_id,omitempty"`
 	Command       string                  `json:"command"`
 	Args          []string                `json:"args,omitempty"`
 	Environment   map[string]string       `json:"environment,omitempty"`
@@ -71,23 +75,25 @@ type StateReporter interface {
 
 // TaskManagerOptions configures the TaskManager.
 type TaskManagerOptions struct {
-	WorkerID      id.ID
-	Runtime       runtime.Runtime
-	Reporter      StateReporter
-	HealthMonitor *health.TaskHealthMonitor
-	Logger        logging.Logger
+	WorkerID       id.ID
+	Runtime        runtime.Runtime
+	Reporter       StateReporter
+	HealthMonitor  *health.TaskHealthMonitor
+	Logger         logging.Logger
+	WorkloadLogger *logs.WorkloadLogger
 }
 
 // TaskManager manages the local lifecycle of tasks executing on a worker.
 type TaskManager struct {
-	mu            sync.RWMutex
-	workerID      id.ID
-	runtime       runtime.Runtime
-	reporter      StateReporter
-	healthMonitor *health.TaskHealthMonitor
-	logger        logging.Logger
-	tasks         map[id.ID]*ManagedTask
-	closed        bool
+	mu             sync.RWMutex
+	workerID       id.ID
+	runtime        runtime.Runtime
+	reporter       StateReporter
+	healthMonitor  *health.TaskHealthMonitor
+	logger         logging.Logger
+	workloadLogger *logs.WorkloadLogger
+	tasks          map[id.ID]*ManagedTask
+	closed         bool
 }
 
 // NewTaskManager creates a new worker TaskManager instance.
@@ -98,13 +104,17 @@ func NewTaskManager(opts TaskManagerOptions) *TaskManager {
 	if opts.Runtime == nil {
 		opts.Runtime = runtime.NewNativeRuntime()
 	}
+	if opts.WorkloadLogger == nil {
+		opts.WorkloadLogger = logs.DefaultWorkloadLogger()
+	}
 
 	tm := &TaskManager{
-		workerID: opts.WorkerID,
-		runtime:  opts.Runtime,
-		reporter: opts.Reporter,
-		logger:   opts.Logger.With("component", "task_manager"),
-		tasks:    make(map[id.ID]*ManagedTask),
+		workerID:       opts.WorkerID,
+		runtime:        opts.Runtime,
+		reporter:       opts.Reporter,
+		logger:         opts.Logger.With("component", "task_manager"),
+		workloadLogger: opts.WorkloadLogger,
+		tasks:          make(map[id.ID]*ManagedTask),
 	}
 
 	if opts.HealthMonitor != nil {
@@ -220,16 +230,45 @@ func (tm *TaskManager) executeTask(ctx context.Context, task *ManagedTask) {
 	default:
 	}
 
-	// 2. Start Runtime Process
+	// 2. Prepare Log Writers & Start Runtime Process
+	var stdoutWriter, stderrWriter io.Writer
+	if tm.workloadLogger != nil {
+		stdoutWriter = tm.workloadLogger.LogWriter(logs.LogEntry{
+			ServiceID:    task.Assignment.ServiceID,
+			ServiceName:  task.Assignment.ServiceName,
+			DeploymentID: task.Assignment.DeploymentID,
+			TaskID:       task.Assignment.TaskID,
+			WorkerID:     tm.workerID,
+			Stream:       "stdout",
+		})
+		stderrWriter = tm.workloadLogger.LogWriter(logs.LogEntry{
+			ServiceID:    task.Assignment.ServiceID,
+			ServiceName:  task.Assignment.ServiceName,
+			DeploymentID: task.Assignment.DeploymentID,
+			TaskID:       task.Assignment.TaskID,
+			WorkerID:     tm.workerID,
+			Stream:       "stderr",
+		})
+	}
+
 	status, err := tm.runtime.Start(ctx, runtime.ProcessSpec{
 		ID:          task.Assignment.TaskID,
 		Command:     task.Assignment.Command,
 		Args:        task.Assignment.Args,
 		Environment: task.Assignment.Environment,
 		WorkingDir:  task.Assignment.WorkingDir,
+		Stdout:      stdoutWriter,
+		Stderr:      stderrWriter,
 	})
 
 	if err != nil {
+		if c, ok := stdoutWriter.(io.Closer); ok {
+			_ = c.Close()
+		}
+		if c, ok := stderrWriter.(io.Closer); ok {
+			_ = c.Close()
+		}
+
 		task.mu.Lock()
 		task.ErrorMsg = err.Error()
 		task.ExitCode = -1

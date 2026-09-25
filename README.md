@@ -166,8 +166,8 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
 - [ ] **Milestone 10: Events, Logs and Auditability** (Phases 36–39)
   - [x] **Phase 36**: Event System *([PHASE_36_COMPLETION_REPORT.md](./docs/reports/PHASE_36_COMPLETION_REPORT.md))*
   - [x] **Phase 37**: Event CLI *([PHASE_37_COMPLETION_REPORT.md](./docs/reports/PHASE_37_COMPLETION_REPORT.md))*
-  - [ ] **Phase 38**: Log Capture
-  - [ ] **Phase 39**: Log CLI
+  - [x] **Phase 38**: Service Logs *([PHASE_38_COMPLETION_REPORT.md](./docs/reports/PHASE_38_COMPLETION_REPORT.md))*
+  - [ ] **Phase 39**: Cluster Status
 - [ ] **Milestones 11–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
 
 

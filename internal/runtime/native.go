@@ -89,8 +89,17 @@ func (r *NativeRuntime) Start(ctx context.Context, spec ProcessSpec) (*ProcessSt
 	}
 
 	logBuf := &bytes.Buffer{}
-	cmd.Stdout = logBuf
-	cmd.Stderr = logBuf
+	if spec.Stdout != nil {
+		cmd.Stdout = io.MultiWriter(logBuf, spec.Stdout)
+	} else {
+		cmd.Stdout = logBuf
+	}
+
+	if spec.Stderr != nil {
+		cmd.Stderr = io.MultiWriter(logBuf, spec.Stderr)
+	} else {
+		cmd.Stderr = logBuf
+	}
 
 	proc := &nativeProcess{
 		spec:      spec,
