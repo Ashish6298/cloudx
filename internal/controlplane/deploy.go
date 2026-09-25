@@ -98,14 +98,100 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		}
 	}
 
-	// 3. Create Deployment Record
+	// 3. Create Immutable Deployment Record
+	version := svcConfig.Version
+	if strings.TrimSpace(version) == "" {
+		version = "v1"
+	}
+
 	deploymentID := id.NewDeploymentID()
+
+	// Convert ports and volumes to models
+	var ports []models.PortMapping
+	for _, p := range svcConfig.Ports {
+		ports = append(ports, models.PortMapping{
+			HostPort:    p.HostPort,
+			ServicePort: p.ServicePort,
+			Protocol:    p.Protocol,
+		})
+	}
+
+	var vols []models.VolumeMount
+	for _, v := range svcConfig.Volumes {
+		vols = append(vols, models.VolumeMount{
+			VolumeName: v.VolumeName,
+			MountPath:  v.Target,
+			ReadOnly:   v.ReadOnly,
+		})
+	}
+
+	var hcSpec *models.HealthCheckSpec
+	if svcConfig.HealthCheck != nil {
+		hcSpec = &models.HealthCheckSpec{
+			Type:             models.HealthCheckType(svcConfig.HealthCheck.Type),
+			Path:             svcConfig.HealthCheck.Path,
+			Port:             svcConfig.HealthCheck.Port,
+			FailureThreshold: svcConfig.HealthCheck.FailureThreshold,
+			SuccessThreshold: svcConfig.HealthCheck.SuccessThreshold,
+		}
+		if svcConfig.HealthCheck.Interval != "" {
+			d, _ := time.ParseDuration(svcConfig.HealthCheck.Interval)
+			hcSpec.Interval = d
+		}
+		if svcConfig.HealthCheck.Timeout != "" {
+			d, _ := time.ParseDuration(svcConfig.HealthCheck.Timeout)
+			hcSpec.Timeout = d
+		}
+	}
+
+	depConfig := models.DeploymentConfig{
+		Command:     svcConfig.Command,
+		Args:        svcConfig.Args,
+		Environment: svcConfig.Environment,
+		WorkingDir:  svcConfig.WorkingDir,
+		Artifact:    svcConfig.Artifact,
+		Runtime:     svcConfig.Runtime,
+		Replicas:    replicas,
+		Resources: models.ResourceRequirements{
+			CPU:    parsedRes.CPUCores,
+			Memory: parsedRes.MemoryBytes,
+		},
+		RestartPolicy: models.RestartPolicy{
+			Type: func() models.RestartPolicyType {
+				if svcConfig.RestartPolicy != nil {
+					return models.RestartPolicyType(svcConfig.RestartPolicy.Type)
+				}
+				return models.RestartPolicyAlways
+			}(),
+		},
+		HealthCheck: hcSpec,
+		Ports:       ports,
+		Volumes:     vols,
+	}
+
+	immDeployment := &models.ImmutableDeployment{
+		ID:          deploymentID,
+		ServiceID:   serviceID,
+		ServiceName: svcConfig.Name,
+		Version:     version,
+		ConfigHash:  depConfig.ComputeHash(),
+		Status:      models.DeploymentStatusInProgress,
+		Config:      depConfig,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	depSpecJSON, err := immDeployment.ToSpecJSON()
+	if err != nil {
+		depSpecJSON = specJSON
+	}
+
 	deploymentRecord := &models.Deployment{
 		ID:        deploymentID,
 		ServiceID: serviceID,
-		Version:   fmt.Sprintf("v-%d", now.Unix()),
-		Status:    "IN_PROGRESS",
-		SpecJSON:  specJSON,
+		Version:   version,
+		Status:    string(models.DeploymentStatusInProgress),
+		SpecJSON:  depSpecJSON,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}

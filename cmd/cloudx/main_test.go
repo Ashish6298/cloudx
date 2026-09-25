@@ -220,7 +220,23 @@ services:
 		t.Fatalf("expected detailed service inspection, got: %s", inspectOut)
 	}
 
-	// 6. cloudx service scale web-api 5
+	// 6. cloudx deployment list
+	depListCmd := newRootCmd()
+	depListBuf := new(bytes.Buffer)
+	depListCmd.SetOut(depListBuf)
+	depListCmd.SetErr(depListBuf)
+	depListCmd.SetArgs([]string{"--storage-path", tempDir, "deployment", "list"})
+
+	if err := depListCmd.Execute(); err != nil {
+		t.Fatalf("deployment list failed: %v", err)
+	}
+
+	depListOut := depListBuf.String()
+	if !strings.Contains(depListOut, "web-api") || !strings.Contains(depListOut, "DEPLOYMENT ID") {
+		t.Fatalf("expected deployment list table, got: %s", depListOut)
+	}
+
+	// 7. cloudx service scale web-api 5
 	scaleCmd := newRootCmd()
 	scaleBuf := new(bytes.Buffer)
 	scaleCmd.SetOut(scaleBuf)

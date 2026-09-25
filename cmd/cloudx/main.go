@@ -40,6 +40,7 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.AddCommand(newClusterCmd())
 	cmd.AddCommand(newWorkerCmd())
 	cmd.AddCommand(newDeployCmd())
+	cmd.AddCommand(newDeploymentCmd())
 	cmd.AddCommand(newServiceCmd())
 	cmd.AddCommand(newFailCmd())
 	return cmd

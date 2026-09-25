@@ -23,6 +23,8 @@ type ServiceConfigFile struct {
 // ServiceConfig defines the declarative specification of a single service workload.
 type ServiceConfig struct {
 	Name          string             `yaml:"name,omitempty" json:"name,omitempty"`
+	Version       string             `yaml:"version,omitempty" json:"version,omitempty"`
+	Artifact      string             `yaml:"artifact,omitempty" json:"artifact,omitempty"`
 	Command       string             `yaml:"command" json:"command"`
 	Args          []string           `yaml:"args,omitempty" json:"args,omitempty"`
 	Environment   map[string]string  `yaml:"environment,omitempty" json:"environment,omitempty"`
