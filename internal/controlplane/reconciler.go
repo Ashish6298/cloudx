@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -211,15 +212,14 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 		// 3. Identify active/desired deployment for this service
 		var targetDeployment *models.Deployment
 		deps, _ := store.Deployments().ListByService(ctx, svc.ID)
-		for i := len(deps) - 1; i >= 0; i-- {
-			d := deps[i]
+		for _, d := range deps {
 			if d.Status == string(models.DeploymentStatusActive) || d.Status == "RUNNING" || d.Status == string(models.DeploymentStatusInProgress) {
 				targetDeployment = d
 				break
 			}
 		}
 		if targetDeployment == nil && len(deps) > 0 {
-			targetDeployment = deps[len(deps)-1]
+			targetDeployment = deps[0]
 		}
 
 		var targetDeploymentID id.ID
@@ -238,71 +238,190 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 			}
 		}
 
+		// Determine update strategy parameters (default: rolling, maxUnavailable=1)
 		currentMatching := len(matchingTasks)
-
-		// 5. Case A: Matching < Desired -> Scale UP (create tasks on target deployment)
-		if currentMatching < desiredReplicas {
-			deficit := desiredReplicas - currentMatching
-			r.logger.Info("Service %s has deficit of %d replicas on deployment %s (desired: %d, current: %d). Creating tasks...",
-				svc.Name, deficit, targetDeploymentID, desiredReplicas, currentMatching)
-
-			for i := 0; i < deficit; i++ {
-				taskID := id.NewTaskID()
-				_, err := coordinator.Assign(ctx, scheduler.AssignOptions{
-					TaskID:       taskID,
-					ServiceID:    svc.ID,
-					DeploymentID: targetDeploymentID,
-					Requirements: &scheduler.TaskRequirements{
-						CPU:             parsedRes.CPUCores,
-						Memory:          parsedRes.MemoryBytes,
-						RequiredRuntime: svc.Runtime,
-					},
-					Spec: scheduler.TaskSpec{
-						Command:       svcConfig.Command,
-						Args:          svcConfig.Args,
-						Environment:   svcConfig.Environment,
-						WorkingDir:    svcConfig.WorkingDir,
-						Runtime:       svc.Runtime,
-						RestartPolicy: models.RestartPolicy{
-							Type: func() models.RestartPolicyType {
-								if svcConfig.RestartPolicy != nil {
-									return models.RestartPolicyType(svcConfig.RestartPolicy.Type)
-								}
-								return models.RestartPolicyAlways
-							}(),
-						},
-						SpecJSON: svc.SpecJSON,
-					},
-				})
-				if err != nil {
-					r.logger.Warn("Reconciler failed to schedule new replica for %s: %v", svc.Name, err)
-					continue
-				}
-				summary.CreatedTasks++
+		maxUnavailable := 1
+		strategyType := "rolling"
+		if svcConfig.UpdateStrategy != nil {
+			if svcConfig.UpdateStrategy.Type != "" {
+				strategyType = strings.ToLower(svcConfig.UpdateStrategy.Type)
 			}
-		} else if currentMatching > desiredReplicas {
-			// 6. Case B: Matching > Desired -> Scale DOWN surplus matching tasks
-			surplus := currentMatching - desiredReplicas
-			r.logger.Info("Service %s has surplus of %d replicas (desired: %d, matching: %d). Stopping tasks...",
-				svc.Name, surplus, desiredReplicas, currentMatching)
-
-			for i := 0; i < surplus && i < len(matchingTasks); i++ {
-				t := matchingTasks[i]
-				t.State = string(models.TaskStateStopped)
-				t.UpdatedAt = time.Now().UTC()
-				_ = store.Tasks().Update(ctx, t)
-				summary.RemovedTasks++
+			if svcConfig.UpdateStrategy.MaxUnavailable > 0 {
+				maxUnavailable = svcConfig.UpdateStrategy.MaxUnavailable
 			}
 		}
 
-		// 7. Transition/Decommission outdated tasks from previous versions
-		for _, ot := range outdatedTasks {
-			r.logger.Info("Decommissioning outdated task %s (deployment: %s) for service %s...",
-				ot.ID, ot.DeploymentID, svc.Name)
-			ot.State = string(models.TaskStateStopped)
-			ot.UpdatedAt = time.Now().UTC()
-			_ = store.Tasks().Update(ctx, ot)
-			summary.RemovedTasks++
+		// Count healthy matching tasks
+		matchingHealthyCount := 0
+		for _, t := range matchingTasks {
+			if t.State == string(models.TaskStateHealthy) || t.State == string(models.TaskStateRunning) {
+				matchingHealthyCount++
+			}
+		}
+
+		// Check for failure/unhealthy condition in newly deployed tasks
+		hasFailedNewTasks := false
+		for _, t := range matchingTasks {
+			if t.State == string(models.TaskStateFailed) || t.State == string(models.TaskStateCrashLoop) || t.State == string(models.TaskStateUnhealthy) {
+				hasFailedNewTasks = true
+				break
+			}
+		}
+
+		if hasFailedNewTasks && len(matchingTasks) > 0 {
+			r.logger.Warn("Rollout for service %s halted: new deployment %s has unhealthy/failed tasks", svc.Name, targetDeploymentID)
+			// Halt rollout progression
+		}
+
+		// 5. Progressive Rolling Replacement logic
+		if strategyType == "recreate" {
+			// Recreate strategy: stop all outdated tasks first, then create matching
+			for _, ot := range outdatedTasks {
+				r.logger.Info("Recreate strategy: stopping outdated task %s for service %s...", ot.ID, svc.Name)
+				ot.State = string(models.TaskStateStopped)
+				ot.UpdatedAt = time.Now().UTC()
+				_ = store.Tasks().Update(ctx, ot)
+				summary.RemovedTasks++
+			}
+
+			if currentMatching < desiredReplicas {
+				deficit := desiredReplicas - currentMatching
+				for i := 0; i < deficit; i++ {
+					taskID := id.NewTaskID()
+					_, err := coordinator.Assign(ctx, scheduler.AssignOptions{
+						TaskID:       taskID,
+						ServiceID:    svc.ID,
+						DeploymentID: targetDeploymentID,
+						Requirements: &scheduler.TaskRequirements{
+							CPU:             parsedRes.CPUCores,
+							Memory:          parsedRes.MemoryBytes,
+							RequiredRuntime: svc.Runtime,
+						},
+						Spec: scheduler.TaskSpec{
+							Command:       svcConfig.Command,
+							Args:          svcConfig.Args,
+							Environment:   svcConfig.Environment,
+							WorkingDir:    svcConfig.WorkingDir,
+							Runtime:       svc.Runtime,
+							RestartPolicy: models.RestartPolicy{
+								Type: func() models.RestartPolicyType {
+									if svcConfig.RestartPolicy != nil {
+										return models.RestartPolicyType(svcConfig.RestartPolicy.Type)
+									}
+									return models.RestartPolicyAlways
+								}(),
+							},
+							SpecJSON: svc.SpecJSON,
+						},
+					})
+					if err != nil {
+						r.logger.Warn("Reconciler failed to schedule task for %s: %v", svc.Name, err)
+						continue
+					}
+					summary.CreatedTasks++
+				}
+			}
+		} else {
+			// Progressive Rolling update:
+			// If no outdated tasks exist (standard scale-up), provision full deficit
+			// If outdated tasks exist (version rollout), roll out progressively respecting maxUnavailable
+			if currentMatching < desiredReplicas && !hasFailedNewTasks {
+				step := desiredReplicas - currentMatching
+				if len(outdatedTasks) > 0 {
+					step = maxUnavailable
+					if step <= 0 {
+						step = 1
+					}
+					deficit := desiredReplicas - currentMatching
+					if deficit < step {
+						step = deficit
+					}
+				}
+
+				for i := 0; i < step; i++ {
+					taskID := id.NewTaskID()
+					_, err := coordinator.Assign(ctx, scheduler.AssignOptions{
+						TaskID:       taskID,
+						ServiceID:    svc.ID,
+						DeploymentID: targetDeploymentID,
+						Requirements: &scheduler.TaskRequirements{
+							CPU:             parsedRes.CPUCores,
+							Memory:          parsedRes.MemoryBytes,
+							RequiredRuntime: svc.Runtime,
+						},
+						Spec: scheduler.TaskSpec{
+							Command:       svcConfig.Command,
+							Args:          svcConfig.Args,
+							Environment:   svcConfig.Environment,
+							WorkingDir:    svcConfig.WorkingDir,
+							Runtime:       svc.Runtime,
+							RestartPolicy: models.RestartPolicy{
+								Type: func() models.RestartPolicyType {
+									if svcConfig.RestartPolicy != nil {
+										return models.RestartPolicyType(svcConfig.RestartPolicy.Type)
+									}
+									return models.RestartPolicyAlways
+								}(),
+							},
+							SpecJSON: svc.SpecJSON,
+						},
+					})
+					if err != nil {
+						r.logger.Warn("Reconciler failed to schedule rolling replica for %s: %v", svc.Name, err)
+						continue
+					}
+					summary.CreatedTasks++
+					matchingHealthyCount++
+					currentMatching++
+					matchingTasks = append(matchingTasks, &models.Task{
+						ID:           taskID,
+						ServiceID:    svc.ID,
+						DeploymentID: targetDeploymentID,
+						State:        string(models.TaskStateRunning),
+					})
+				}
+			}
+
+			// Decommission outdated tasks progressively as matching tasks become available/healthy
+			// Ensure we do not decommission more than maxUnavailable per pass, and total active replicas >= (desiredReplicas - maxUnavailable)
+			if len(outdatedTasks) > 0 && !hasFailedNewTasks {
+				// Target outdated tasks to keep = desiredReplicas - len(matchingTasks)
+				// If len(matchingTasks) >= desiredReplicas, target outdated tasks to keep is 0
+				targetOutdated := desiredReplicas - len(matchingTasks)
+				if targetOutdated < 0 {
+					targetOutdated = 0
+				}
+				neededToStop := len(outdatedTasks) - targetOutdated
+				allowedToStop := neededToStop
+				if allowedToStop > maxUnavailable {
+					allowedToStop = maxUnavailable
+				}
+				if allowedToStop < 0 {
+					allowedToStop = 0
+				}
+
+				for i := 0; i < allowedToStop && i < len(outdatedTasks); i++ {
+					ot := outdatedTasks[i]
+					r.logger.Info("Progressive rolling update: retiring outdated replica %s (deployment %s) for service %s...",
+						ot.ID, ot.DeploymentID, svc.Name)
+					ot.State = string(models.TaskStateStopped)
+					ot.UpdatedAt = time.Now().UTC()
+					_ = store.Tasks().Update(ctx, ot)
+					summary.RemovedTasks++
+				}
+			}
+
+			// If current matching exceeds desired replicas, scale down matching
+			if currentMatching > desiredReplicas {
+				surplus := currentMatching - desiredReplicas
+				for i := 0; i < surplus && i < len(matchingTasks); i++ {
+					t := matchingTasks[i]
+					t.State = string(models.TaskStateStopped)
+					t.UpdatedAt = time.Now().UTC()
+					_ = store.Tasks().Update(ctx, t)
+					summary.RemovedTasks++
+				}
+			}
 		}
 
 		// 5. Update derived service status

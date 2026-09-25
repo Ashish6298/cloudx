@@ -144,6 +144,21 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		}
 	}
 
+	var updateStrategy *models.UpdateStrategySpec
+	if svcConfig.UpdateStrategy != nil {
+		updateStrategy = &models.UpdateStrategySpec{
+			Type:           svcConfig.UpdateStrategy.Type,
+			MaxUnavailable: svcConfig.UpdateStrategy.MaxUnavailable,
+			MaxSurge:       svcConfig.UpdateStrategy.MaxSurge,
+		}
+	} else {
+		updateStrategy = &models.UpdateStrategySpec{
+			Type:           "rolling",
+			MaxUnavailable: 1,
+			MaxSurge:       1,
+		}
+	}
+
 	depConfig := models.DeploymentConfig{
 		Command:     svcConfig.Command,
 		Args:        svcConfig.Args,
@@ -164,9 +179,10 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 				return models.RestartPolicyAlways
 			}(),
 		},
-		HealthCheck: hcSpec,
-		Ports:       ports,
-		Volumes:     vols,
+		HealthCheck:    hcSpec,
+		UpdateStrategy: updateStrategy,
+		Ports:          ports,
+		Volumes:        vols,
 	}
 
 	immDeployment := &models.ImmutableDeployment{
@@ -186,16 +202,6 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		depSpecJSON = specJSON
 	}
 
-	// Supercede previous active deployments for this service
-	prevDeployments, _ := store.Deployments().ListByService(ctx, serviceID)
-	for _, prevDep := range prevDeployments {
-		if prevDep.ID != deploymentID && prevDep.Status != string(models.DeploymentStatusSuperceded) && prevDep.Status != string(models.DeploymentStatusRolledBack) {
-			prevDep.Status = string(models.DeploymentStatusSuperceded)
-			prevDep.UpdatedAt = now
-			_ = store.Deployments().Update(ctx, prevDep)
-		}
-	}
-
 	deploymentRecord := &models.Deployment{
 		ID:        deploymentID,
 		ServiceID: serviceID,
@@ -207,6 +213,16 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 	}
 	if err := store.Deployments().Create(ctx, deploymentRecord); err != nil {
 		return nil, fmt.Errorf("failed to create deployment record: %w", err)
+	}
+
+	// Supercede previous active deployments for this service
+	prevDeployments, _ := store.Deployments().ListByService(ctx, serviceID)
+	for _, prevDep := range prevDeployments {
+		if prevDep.ID != deploymentID && prevDep.Status != string(models.DeploymentStatusSuperceded) && prevDep.Status != string(models.DeploymentStatusRolledBack) {
+			prevDep.Status = string(models.DeploymentStatusSuperceded)
+			prevDep.UpdatedAt = now
+			_ = store.Deployments().Update(ctx, prevDep)
+		}
 	}
 
 	// 4. Schedule & Assign Replicas via Reconciler

@@ -24,20 +24,28 @@ const (
 	DeploymentStatusRolledBack DeploymentStatus = "ROLLED_BACK"
 )
 
+// UpdateStrategySpec defines rollout strategy parameters.
+type UpdateStrategySpec struct {
+	Type          string `json:"type" yaml:"type"` // "rolling", "recreate"
+	MaxUnavailable int    `json:"max_unavailable" yaml:"max_unavailable"`
+	MaxSurge       int    `json:"max_surge" yaml:"max_surge"`
+}
+
 // DeploymentConfig captures the snapshot of service configuration for a deployment.
 type DeploymentConfig struct {
-	Command       string               `json:"command"`
-	Args          []string             `json:"args,omitempty"`
-	Environment   map[string]string    `json:"environment,omitempty"`
-	WorkingDir    string               `json:"working_dir,omitempty"`
-	Artifact      string               `json:"artifact,omitempty"` // Artifact reference / binary path / container image
-	Runtime       string               `json:"runtime"`
-	Replicas      int                  `json:"replicas"`
-	Resources     ResourceRequirements `json:"resources"`
-	RestartPolicy RestartPolicy        `json:"restart_policy"`
-	HealthCheck   *HealthCheckSpec     `json:"health_check,omitempty"`
-	Ports         []PortMapping        `json:"ports,omitempty"`
-	Volumes       []VolumeMount        `json:"volumes,omitempty"`
+	Command        string               `json:"command"`
+	Args           []string             `json:"args,omitempty"`
+	Environment    map[string]string    `json:"environment,omitempty"`
+	WorkingDir     string               `json:"working_dir,omitempty"`
+	Artifact       string               `json:"artifact,omitempty"` // Artifact reference / binary path / container image
+	Runtime        string               `json:"runtime"`
+	Replicas       int                  `json:"replicas"`
+	Resources      ResourceRequirements `json:"resources"`
+	RestartPolicy  RestartPolicy        `json:"restart_policy"`
+	HealthCheck    *HealthCheckSpec     `json:"health_check,omitempty"`
+	UpdateStrategy *UpdateStrategySpec  `json:"update_strategy,omitempty"`
+	Ports          []PortMapping        `json:"ports,omitempty"`
+	Volumes        []VolumeMount        `json:"volumes,omitempty"`
 }
 
 // ComputeHash generates a deterministic SHA-256 fingerprint for a deployment configuration.
@@ -59,31 +67,33 @@ func (c *DeploymentConfig) ComputeHash() string {
 	}
 
 	raw := struct {
-		Command       string               `json:"command"`
-		Args          []string             `json:"args,omitempty"`
-		Environment   []sortedEnvPair      `json:"environment,omitempty"`
-		WorkingDir    string               `json:"working_dir,omitempty"`
-		Artifact      string               `json:"artifact,omitempty"`
-		Runtime       string               `json:"runtime"`
-		Replicas      int                  `json:"replicas"`
-		Resources     ResourceRequirements `json:"resources"`
-		RestartPolicy RestartPolicy        `json:"restart_policy"`
-		HealthCheck   *HealthCheckSpec     `json:"health_check,omitempty"`
-		Ports         []PortMapping        `json:"ports,omitempty"`
-		Volumes       []VolumeMount        `json:"volumes,omitempty"`
+		Command        string               `json:"command"`
+		Args           []string             `json:"args,omitempty"`
+		Environment    []sortedEnvPair      `json:"environment,omitempty"`
+		WorkingDir     string               `json:"working_dir,omitempty"`
+		Artifact       string               `json:"artifact,omitempty"`
+		Runtime        string               `json:"runtime"`
+		Replicas       int                  `json:"replicas"`
+		Resources      ResourceRequirements `json:"resources"`
+		RestartPolicy  RestartPolicy        `json:"restart_policy"`
+		HealthCheck    *HealthCheckSpec     `json:"health_check,omitempty"`
+		UpdateStrategy *UpdateStrategySpec  `json:"update_strategy,omitempty"`
+		Ports          []PortMapping        `json:"ports,omitempty"`
+		Volumes        []VolumeMount        `json:"volumes,omitempty"`
 	}{
-		Command:       c.Command,
-		Args:          c.Args,
-		Environment:   sortedEnv,
-		WorkingDir:    c.WorkingDir,
-		Artifact:      c.Artifact,
-		Runtime:       c.Runtime,
-		Replicas:      c.Replicas,
-		Resources:     c.Resources,
-		RestartPolicy: c.RestartPolicy,
-		HealthCheck:   c.HealthCheck,
-		Ports:         c.Ports,
-		Volumes:       c.Volumes,
+		Command:        c.Command,
+		Args:           c.Args,
+		Environment:    sortedEnv,
+		WorkingDir:     c.WorkingDir,
+		Artifact:       c.Artifact,
+		Runtime:        c.Runtime,
+		Replicas:       c.Replicas,
+		Resources:      c.Resources,
+		RestartPolicy:  c.RestartPolicy,
+		HealthCheck:    c.HealthCheck,
+		UpdateStrategy: c.UpdateStrategy,
+		Ports:          c.Ports,
+		Volumes:        c.Volumes,
 	}
 
 	b, _ := json.Marshal(raw)

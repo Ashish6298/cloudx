@@ -161,7 +161,7 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
 - [ ] **Milestone 9: Deployments and Rollbacks** (Phases 32–35)
   - [x] **Phase 32**: Deployment Model *([PHASE_32_COMPLETION_REPORT.md](./docs/reports/PHASE_32_COMPLETION_REPORT.md))*
   - [x] **Phase 33**: Versioned Deployment *([PHASE_33_COMPLETION_REPORT.md](./docs/reports/PHASE_33_COMPLETION_REPORT.md))*
-  - [ ] **Phase 34**: Rolling Deployment
+  - [x] **Phase 34**: Rolling Deployment *([PHASE_34_COMPLETION_REPORT.md](./docs/reports/PHASE_34_COMPLETION_REPORT.md))*
   - [ ] **Phase 35**: Rollback Strategy
 - [ ] **Milestones 10–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
 

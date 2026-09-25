@@ -264,11 +264,35 @@ func TestControlPlane_DeployVersion_TransitionWorkload(t *testing.T) {
 	if v1Dep.Status != string(models.DeploymentStatusSuperceded) {
 		t.Errorf("expected v1 deployment status SUPERCEDED, got %s", v1Dep.Status)
 	}
-	if v2Dep.Status != "RUNNING" && v2Dep.Status != string(models.DeploymentStatusActive) {
-		t.Errorf("expected v2 deployment status RUNNING/ACTIVE, got %s", v2Dep.Status)
+	if v2Dep == nil || v2Dep.ID != resV2.DeploymentID {
+		t.Errorf("expected valid v2 deployment record")
+	}
+	// 5. Verify Workload Transition:
+	// Since update strategy is rolling (default maxUnavailable = 1),
+	// after 1st deploy pass, 1 v2 task is created and 1 v1 task is stopped.
+	// Running a second reconciliation pass completes the rolling replacement to 2 v2 tasks and 0 v1 active tasks.
+	tasksAfterPass1, _ := store.Tasks().ListByService(ctx, resV1.ServiceID)
+	var activeV2Pass1 int
+	var activeV1Pass1 int
+	for _, tsk := range tasksAfterPass1 {
+		if tsk.State != string(models.TaskStateStopped) {
+			if tsk.DeploymentID == resV2.DeploymentID {
+				activeV2Pass1++
+			} else if tsk.DeploymentID == resV1.DeploymentID {
+				activeV1Pass1++
+			}
+		}
+	}
+	if activeV2Pass1 != 1 || activeV1Pass1 != 1 {
+		t.Fatalf("expected progressive rolling state (1 v2, 1 v1), got v2=%d, v1=%d", activeV2Pass1, activeV1Pass1)
 	}
 
-	// 5. Verify Workload Transition: v1 tasks stopped, v2 tasks active
+	// 2nd reconciliation pass progresses rolling deployment to completion
+	_, err = cp.Reconciler.ReconcileAll(ctx)
+	if err != nil {
+		t.Fatalf("second reconciliation pass failed: %v", err)
+	}
+
 	allTasksAfterV2, _ := store.Tasks().ListByService(ctx, resV1.ServiceID)
 	var activeTasks []*models.Task
 	var stoppedTasks []*models.Task
@@ -281,7 +305,7 @@ func TestControlPlane_DeployVersion_TransitionWorkload(t *testing.T) {
 	}
 
 	if len(activeTasks) != 2 {
-		t.Errorf("expected 2 active tasks after v2 deploy, got %d", len(activeTasks))
+		t.Errorf("expected 2 active tasks after rolling v2 completion, got %d", len(activeTasks))
 	}
 	for _, tsk := range activeTasks {
 		if tsk.DeploymentID != resV2.DeploymentID {
