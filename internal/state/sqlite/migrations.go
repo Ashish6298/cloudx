@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS volumes (
     worker_id TEXT NOT NULL,
     path TEXT NOT NULL,
     driver TEXT NOT NULL DEFAULT 'local',
+    spec_json TEXT NOT NULL DEFAULT '{}',
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL
 );

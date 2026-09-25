@@ -171,8 +171,10 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
 - [x] **Milestone 11: Job Execution** (Phases 40–42)
   - [x] **Phase 40**: Job Model *([PHASE_40_COMPLETION_REPORT.md](./docs/reports/PHASE_40_COMPLETION_REPORT.md))*
   - [x] **Phase 41**: Job Scheduler Integration *([PHASE_41_COMPLETION_REPORT.md](./docs/reports/PHASE_41_COMPLETION_REPORT.md))*
-  - [x] **Phase 42**: Job Lifecycle and Retry *([PHASE_42_COMPLETION_REPORT.md](./docs/reports/PHASE_42_COMPLETION_REPORT.md))*
-- [ ] **Milestone 12: Persistent Volumes** (Phases 43–46)
+- [ ] **Milestone 12: Persistent Volumes** (Phases 43–45)
+  - [x] **Phase 43**: Volume Model *([PHASE_43_COMPLETION_REPORT.md](./docs/reports/PHASE_43_COMPLETION_REPORT.md))*
+  - [ ] **Phase 44**: Volume Lifecycle
+  - [ ] **Phase 45**: Volume and Scheduling Constraints
 - [ ] **Milestones 13–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
 
 
