@@ -153,7 +153,10 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 25**: Reconciliation Engine *([PHASE_25_COMPLETION_REPORT.md](./docs/reports/PHASE_25_COMPLETION_REPORT.md))*
   - [x] **Phase 26**: Replica Scaling *([PHASE_26_COMPLETION_REPORT.md](./docs/reports/PHASE_26_COMPLETION_REPORT.md))*
   - [x] **Phase 27**: Restart Policies *([PHASE_27_COMPLETION_REPORT.md](./docs/reports/PHASE_27_COMPLETION_REPORT.md))*
-- [ ] **Milestones 8–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+- [ ] **Milestone 8: Health and Failure Recovery** (Phases 28–32)
+  - [x] **Phase 28**: Health Checks *([PHASE_28_COMPLETION_REPORT.md](./docs/reports/PHASE_28_COMPLETION_REPORT.md))*
+  - [ ] **Phase 29**: Automatic Failure Recovery
+- [ ] **Milestones 9–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
 
 
 

@@ -10,7 +10,9 @@ import (
 
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
+	"github.com/cloudx-org/cloudx/internal/health"
 	"github.com/cloudx-org/cloudx/internal/runtime"
+	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state/models"
 	"github.com/cloudx-org/cloudx/internal/state/transitions"
 	v1 "github.com/cloudx-org/cloudx/proto/v1"
@@ -24,13 +26,14 @@ var (
 
 // TaskAssignment contains the parameters required to accept and execute a task workload.
 type TaskAssignment struct {
-	TaskID        id.ID                `json:"task_id"`
-	ServiceID     id.ID                `json:"service_id,omitempty"`
-	Command       string               `json:"command"`
-	Args          []string             `json:"args,omitempty"`
-	Environment   map[string]string    `json:"environment,omitempty"`
-	WorkingDir    string               `json:"working_dir,omitempty"`
-	RestartPolicy models.RestartPolicy `json:"restart_policy,omitempty"`
+	TaskID        id.ID                   `json:"task_id"`
+	ServiceID     id.ID                   `json:"service_id,omitempty"`
+	Command       string                  `json:"command"`
+	Args          []string                `json:"args,omitempty"`
+	Environment   map[string]string       `json:"environment,omitempty"`
+	WorkingDir    string                  `json:"working_dir,omitempty"`
+	RestartPolicy models.RestartPolicy    `json:"restart_policy,omitempty"`
+	HealthCheck   *spec.HealthCheckConfig `json:"health_check,omitempty"`
 }
 
 // ManagedTask holds the execution lifecycle and status of a worker task.
@@ -68,21 +71,23 @@ type StateReporter interface {
 
 // TaskManagerOptions configures the TaskManager.
 type TaskManagerOptions struct {
-	WorkerID id.ID
-	Runtime  runtime.Runtime
-	Reporter StateReporter
-	Logger   logging.Logger
+	WorkerID      id.ID
+	Runtime       runtime.Runtime
+	Reporter      StateReporter
+	HealthMonitor *health.TaskHealthMonitor
+	Logger        logging.Logger
 }
 
 // TaskManager manages the local lifecycle of tasks executing on a worker.
 type TaskManager struct {
-	mu       sync.RWMutex
-	workerID id.ID
-	runtime  runtime.Runtime
-	reporter StateReporter
-	logger   logging.Logger
-	tasks    map[id.ID]*ManagedTask
-	closed   bool
+	mu            sync.RWMutex
+	workerID      id.ID
+	runtime       runtime.Runtime
+	reporter      StateReporter
+	healthMonitor *health.TaskHealthMonitor
+	logger        logging.Logger
+	tasks         map[id.ID]*ManagedTask
+	closed        bool
 }
 
 // NewTaskManager creates a new worker TaskManager instance.
@@ -94,13 +99,21 @@ func NewTaskManager(opts TaskManagerOptions) *TaskManager {
 		opts.Runtime = runtime.NewNativeRuntime()
 	}
 
-	return &TaskManager{
+	tm := &TaskManager{
 		workerID: opts.WorkerID,
 		runtime:  opts.Runtime,
 		reporter: opts.Reporter,
 		logger:   opts.Logger.With("component", "task_manager"),
 		tasks:    make(map[id.ID]*ManagedTask),
 	}
+
+	if opts.HealthMonitor != nil {
+		tm.healthMonitor = opts.HealthMonitor
+	} else {
+		tm.healthMonitor = health.NewTaskHealthMonitor(health.NewDefaultProber(), tm.logger, tm.handleHealthStateChange)
+	}
+
+	return tm
 }
 
 // AssignTask accepts, validates, and starts a task assignment.
@@ -216,8 +229,87 @@ func (tm *TaskManager) executeTask(ctx context.Context, task *ManagedTask) {
 		tm.logger.Error("Failed to transition task %s to RUNNING: %v", task.Assignment.TaskID, err)
 	}
 
-	// 4. Supervise Process until completion or cancellation
+	// 4. Start Health Probing if configured
+	tm.startTaskHealthProbe(ctx, task)
+
+	// 5. Supervise Process until completion or cancellation
 	tm.superviseTask(ctx, task)
+}
+
+func (tm *TaskManager) startTaskHealthProbe(ctx context.Context, task *ManagedTask) {
+	if tm.healthMonitor == nil {
+		return
+	}
+
+	hc := task.Assignment.HealthCheck
+	probeCfg := health.DefaultProbeConfig()
+	probeCfg.PID = task.PID
+
+	if hc != nil {
+		switch strings.ToLower(hc.Type) {
+		case "tcp":
+			probeCfg.Type = health.CheckTypeTCP
+		case "http":
+			probeCfg.Type = health.CheckTypeHTTP
+		default:
+			probeCfg.Type = health.CheckTypeProcess
+		}
+
+		probeCfg.Port = hc.Port
+		probeCfg.Path = hc.Path
+		if hc.Interval != "" {
+			if d, err := time.ParseDuration(hc.Interval); err == nil {
+				probeCfg.Interval = d
+			}
+		}
+		if hc.Timeout != "" {
+			if d, err := time.ParseDuration(hc.Timeout); err == nil {
+				probeCfg.Timeout = d
+			}
+		}
+		if hc.FailureThreshold > 0 {
+			probeCfg.FailureThreshold = hc.FailureThreshold
+		}
+		if hc.SuccessThreshold > 0 {
+			probeCfg.SuccessThreshold = hc.SuccessThreshold
+		}
+	}
+
+	_ = tm.healthMonitor.RegisterTask(ctx, task.Assignment.TaskID, probeCfg)
+}
+
+func (tm *TaskManager) handleHealthStateChange(taskID id.ID, prev, current health.HealthState, details string) {
+	tm.mu.RLock()
+	task, ok := tm.tasks[taskID]
+	tm.mu.RUnlock()
+
+	if !ok || task == nil {
+		return
+	}
+
+	task.mu.RLock()
+	state := task.State
+	task.mu.RUnlock()
+
+	// Only transition active running tasks
+	if state != models.TaskStateRunning && state != models.TaskStateHealthy && state != models.TaskStateUnhealthy {
+		return
+	}
+
+	var targetState models.TaskState
+	switch current {
+	case health.HealthStateHealthy:
+		targetState = models.TaskStateHealthy
+	case health.HealthStateUnhealthy:
+		targetState = models.TaskStateUnhealthy
+	default:
+		return
+	}
+
+	if state != targetState {
+		tm.logger.Info("Health check triggered task %s state change: %s -> %s (%s)", taskID, state, targetState, details)
+		_ = tm.transitionTask(context.Background(), task, targetState)
+	}
 }
 
 // superviseTask polls the runtime process state and handles completion/crash.
@@ -228,6 +320,11 @@ func (tm *TaskManager) superviseTask(ctx context.Context, task *ManagedTask) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Unregister probe
+			if tm.healthMonitor != nil {
+				tm.healthMonitor.UnregisterTask(task.Assignment.TaskID)
+			}
+
 			// Context canceled: stop process
 			_ = tm.transitionTask(context.Background(), task, models.TaskStateStopping)
 			_ = tm.runtime.Stop(context.Background(), task.Assignment.TaskID, 3*time.Second)
@@ -250,6 +347,11 @@ func (tm *TaskManager) superviseTask(ctx context.Context, task *ManagedTask) {
 			}
 
 			if !status.Running {
+				// Unregister probe immediately on process exit
+				if tm.healthMonitor != nil {
+					tm.healthMonitor.UnregisterTask(task.Assignment.TaskID)
+				}
+
 				// Process finished
 				task.mu.Lock()
 				task.ExitCode = status.ExitCode
@@ -451,6 +553,10 @@ func (tm *TaskManager) Close() error {
 
 	for _, t := range tasks {
 		_ = tm.StopTask(ctx, t.Assignment.TaskID)
+	}
+
+	if tm.healthMonitor != nil {
+		_ = tm.healthMonitor.Close()
 	}
 
 	return nil

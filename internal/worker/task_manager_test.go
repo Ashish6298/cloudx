@@ -10,6 +10,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	run "github.com/cloudx-org/cloudx/internal/runtime"
+	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state/models"
 	v1 "github.com/cloudx-org/cloudx/proto/v1"
 )
@@ -408,6 +409,92 @@ func TestTaskManager_RestartPolicy_Always_CleanExit(t *testing.T) {
 	}
 	if st.RestartCount < 1 {
 		t.Fatalf("expected at least 1 restart for 'always' restart policy, got %d", st.RestartCount)
+	}
+}
+
+func TestTaskManager_HealthProbe_DistinguishProcessRunningFromHealthy(t *testing.T) {
+	reporter := &mockReporter{}
+	tm := NewTaskManager(TaskManagerOptions{
+		WorkerID: id.NewWorkerID(),
+		Runtime:  run.NewNativeRuntime(),
+		Reporter: reporter,
+		Logger:   logging.NewDefaultLogger(),
+	})
+	defer tm.Close()
+
+	var cmd string
+	var args []string
+	if runtime.GOOS == "windows" {
+		cmd = "powershell"
+		args = []string{"-NoProfile", "-Command", "Start-Sleep -Seconds 5"}
+	} else {
+		cmd = "sh"
+		args = []string{"-c", "sleep 5"}
+	}
+
+	taskID := id.NewTaskID()
+	// Configure an HTTP health check on a closed port to simulate process RUNNING but service UNHEALTHY
+	err := tm.AssignTask(context.Background(), TaskAssignment{
+		TaskID:  taskID,
+		Command: cmd,
+		Args:    args,
+		HealthCheck: &spec.HealthCheckConfig{
+			Type:             "http",
+			Port:             65531,
+			Path:             "/healthz",
+			Interval:         "50ms",
+			Timeout:          "50ms",
+			FailureThreshold: 2,
+			SuccessThreshold: 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to assign task: %v", err)
+	}
+
+	// 1. Wait for process to start and enter RUNNING
+	for i := 0; i < 40; i++ {
+		time.Sleep(50 * time.Millisecond)
+		st, _ := tm.GetTask(taskID)
+		if st != nil && (st.State == models.TaskStateRunning || st.State == models.TaskStateUnhealthy) {
+			break
+		}
+	}
+
+	// 2. Allow health checks to fail (since port 65531 is not listening) -> must transition RUNNING -> UNHEALTHY
+	var finalState models.TaskState
+	for i := 0; i < 40; i++ {
+		time.Sleep(50 * time.Millisecond)
+		st, _ := tm.GetTask(taskID)
+		if st != nil {
+			finalState = st.State
+			if st.State == models.TaskStateUnhealthy {
+				break
+			}
+		}
+	}
+
+	if finalState != models.TaskStateUnhealthy {
+		t.Fatalf("expected task state to become UNHEALTHY while process is running, got: %s", finalState)
+	}
+
+	// 3. Process is still alive and running (PID > 0)
+	st, _ := tm.GetTask(taskID)
+	if st.PID <= 0 {
+		t.Fatalf("expected active PID while in UNHEALTHY state, got %d", st.PID)
+	}
+
+	// Verify reports included UNHEALTHY
+	reports := reporter.getReports()
+	foundUnhealthy := false
+	for _, r := range reports {
+		if r.State == string(models.TaskStateUnhealthy) {
+			foundUnhealthy = true
+			break
+		}
+	}
+	if !foundUnhealthy {
+		t.Fatalf("expected control plane report for state UNHEALTHY")
 	}
 }
 
