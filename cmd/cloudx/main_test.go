@@ -299,6 +299,54 @@ services:
 	if !strings.Contains(rollbackOut, "rolled back successfully") || !strings.Contains(rollbackOut, "To Version:      v1") {
 		t.Fatalf("expected rollback success output to v1, got: %s", rollbackOut)
 	}
+
+	// 11. cloudx events (Event CLI test)
+	eventsCmd := newRootCmd()
+	eventsBuf := new(bytes.Buffer)
+	eventsCmd.SetOut(eventsBuf)
+	eventsCmd.SetErr(eventsBuf)
+	eventsCmd.SetArgs([]string{"--storage-path", tempDir, "events"})
+
+	if err := eventsCmd.Execute(); err != nil {
+		t.Fatalf("events command failed: %v", err)
+	}
+
+	eventsOut := eventsBuf.String()
+	if !strings.Contains(eventsOut, "TIMESTAMP") || !strings.Contains(eventsOut, "SERVICE_CREATED") {
+		t.Fatalf("expected chronological events listing, got: %s", eventsOut)
+	}
+
+	// 12. cloudx events --service web-api
+	eventsSvcCmd := newRootCmd()
+	eventsSvcBuf := new(bytes.Buffer)
+	eventsSvcCmd.SetOut(eventsSvcBuf)
+	eventsSvcCmd.SetErr(eventsSvcBuf)
+	eventsSvcCmd.SetArgs([]string{"--storage-path", tempDir, "events", "--service", "web-api"})
+
+	if err := eventsSvcCmd.Execute(); err != nil {
+		t.Fatalf("events --service command failed: %v", err)
+	}
+
+	eventsSvcOut := eventsSvcBuf.String()
+	if !strings.Contains(eventsSvcOut, "SERVICE_CREATED") && !strings.Contains(eventsSvcOut, "SERVICE_ROLLED_BACK") {
+		t.Fatalf("expected service events, got: %s", eventsSvcOut)
+	}
+
+	// 13. cloudx events --since 1h --json
+	eventsSinceCmd := newRootCmd()
+	eventsSinceBuf := new(bytes.Buffer)
+	eventsSinceCmd.SetOut(eventsSinceBuf)
+	eventsSinceCmd.SetErr(eventsSinceBuf)
+	eventsSinceCmd.SetArgs([]string{"--storage-path", tempDir, "events", "--since", "1h", "--json"})
+
+	if err := eventsSinceCmd.Execute(); err != nil {
+		t.Fatalf("events --since --json command failed: %v", err)
+	}
+
+	eventsSinceOut := eventsSinceBuf.String()
+	if !strings.Contains(eventsSinceOut, `"type":`) {
+		t.Fatalf("expected JSON events output, got: %s", eventsSinceOut)
+	}
 }
 
 func TestFailSimulationCLI(t *testing.T) {
