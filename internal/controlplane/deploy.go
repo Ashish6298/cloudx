@@ -186,11 +186,21 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		depSpecJSON = specJSON
 	}
 
+	// Supercede previous active deployments for this service
+	prevDeployments, _ := store.Deployments().ListByService(ctx, serviceID)
+	for _, prevDep := range prevDeployments {
+		if prevDep.ID != deploymentID && prevDep.Status != string(models.DeploymentStatusSuperceded) && prevDep.Status != string(models.DeploymentStatusRolledBack) {
+			prevDep.Status = string(models.DeploymentStatusSuperceded)
+			prevDep.UpdatedAt = now
+			_ = store.Deployments().Update(ctx, prevDep)
+		}
+	}
+
 	deploymentRecord := &models.Deployment{
 		ID:        deploymentID,
 		ServiceID: serviceID,
 		Version:   version,
-		Status:    string(models.DeploymentStatusInProgress),
+		Status:    string(models.DeploymentStatusActive),
 		SpecJSON:  depSpecJSON,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -199,52 +209,36 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		return nil, fmt.Errorf("failed to create deployment record: %w", err)
 	}
 
-	// 4. Schedule & Assign Replicas
-	var assignedTasks []*scheduler.AssignmentResult
-	if replicas > 0 {
-		sched := scheduler.NewBasicScheduler()
-		coordinator := scheduler.NewAssignmentCoordinator(store, sched, dispatcher, cp.logger)
+	// 4. Schedule & Assign Replicas via Reconciler
+	reconciler := cp.Reconciler
+	if dispatcher != nil {
+		reconciler.SetDispatcher(dispatcher)
+	}
 
-		for i := 0; i < replicas; i++ {
-			taskID := id.NewTaskID()
-			assignRes, err := coordinator.Assign(ctx, scheduler.AssignOptions{
-				TaskID:       taskID,
-				ServiceID:    serviceID,
-				DeploymentID: deploymentID,
-				Requirements: &scheduler.TaskRequirements{
-					CPU:             parsedRes.CPUCores,
-					Memory:          parsedRes.MemoryBytes,
-					RequiredRuntime: svcConfig.Runtime,
-				},
-				Spec: scheduler.TaskSpec{
-					Command:       svcConfig.Command,
-					Args:          svcConfig.Args,
-					Environment:   svcConfig.Environment,
-					WorkingDir:    svcConfig.WorkingDir,
-					Runtime:       svcConfig.Runtime,
-					RestartPolicy: models.RestartPolicy{
-						Type: func() models.RestartPolicyType {
-							if svcConfig.RestartPolicy != nil {
-								return models.RestartPolicyType(svcConfig.RestartPolicy.Type)
-							}
-							return models.RestartPolicyAlways
-						}(),
-					},
-					SpecJSON: specJSON,
-				},
+	summary, err := reconciler.ReconcileAll(ctx)
+	if err != nil {
+		cp.logger.Warn("Initial reconciliation pass encountered warning: %v", err)
+	}
+	_ = summary
+
+	// Fetch current active tasks assigned to this deployment
+	allTasks, _ := store.Tasks().ListByService(ctx, serviceID)
+	var activeTasks []*scheduler.AssignmentResult
+	for _, t := range allTasks {
+		if t.DeploymentID == deploymentID && t.State != string(models.TaskStateStopped) && t.State != string(models.TaskStateFailed) && t.State != string(models.TaskStateLost) {
+			activeTasks = append(activeTasks, &scheduler.AssignmentResult{
+				TaskID:    t.ID,
+				WorkerID:  t.WorkerID,
+				State:     models.TaskState(t.State),
+				Timestamp: t.UpdatedAt,
 			})
-			if err != nil {
-				cp.logger.Warn("Failed to schedule replica %d/%d for service %s: %v", i+1, replicas, svcConfig.Name, err)
-				continue
-			}
-			assignedTasks = append(assignedTasks, assignRes)
 		}
 	}
 
 	// 5. Update Status
 	svcStatus := "RUNNING"
-	if len(assignedTasks) < replicas {
-		if len(assignedTasks) == 0 && replicas > 0 {
+	if len(activeTasks) < replicas {
+		if len(activeTasks) == 0 && replicas > 0 {
 			svcStatus = "FAILED"
 		} else {
 			svcStatus = "DEGRADED"
@@ -271,7 +265,7 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		Type:      "SERVICE_DEPLOYED",
 		Source:    "controlplane",
 		EntityID:  serviceID,
-		Payload:   fmt.Sprintf(`{"service":"%s","replicas":%d,"assigned":%d,"status":"%s"}`, svcConfig.Name, replicas, len(assignedTasks), svcStatus),
+		Payload:   fmt.Sprintf(`{"service":"%s","version":"%s","deployment_id":"%s","replicas":%d,"assigned":%d,"status":"%s"}`, svcConfig.Name, version, deploymentID, replicas, len(activeTasks), svcStatus),
 		CreatedAt: time.Now().UTC(),
 	})
 
@@ -281,9 +275,162 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		ServiceName:  svcConfig.Name,
 		Replicas:     replicas,
 		Status:       svcStatus,
-		Tasks:        assignedTasks,
+		Tasks:        activeTasks,
 		CreatedAt:    now,
 	}, nil
+}
+
+// DeployVersion activates an existing or requested immutable deployment version for a service (e.g. "api:v2").
+// It updates the desired service state to match that version's specification and runs reconciliation.
+func (cp *ControlPlane) DeployVersion(ctx context.Context, serviceNameOrID string, targetVersion string, dispatcher scheduler.Dispatcher) (*DeployResult, error) {
+	if strings.TrimSpace(serviceNameOrID) == "" {
+		return nil, fmt.Errorf("service name or ID is required")
+	}
+	if strings.TrimSpace(targetVersion) == "" {
+		return nil, fmt.Errorf("target version is required (e.g. 'v2')")
+	}
+
+	store := cp.StateManager.Store()
+	if store == nil {
+		return nil, fmt.Errorf("state store is not available")
+	}
+
+	inspectRes, err := cp.InspectService(ctx, serviceNameOrID)
+	if err != nil {
+		return nil, err
+	}
+
+	svc := inspectRes.Service
+
+	// Locate the target deployment record for this service matching the version
+	var targetDep *models.Deployment
+	for _, d := range inspectRes.Deployments {
+		if strings.EqualFold(d.Version, targetVersion) || d.ID.String() == targetVersion {
+			targetDep = d
+			break
+		}
+	}
+
+	now := time.Now().UTC()
+
+	if targetDep == nil {
+		// If deployment version doesn't exist yet, construct from current service spec with new version
+		return cp.deployNewVersionFromCurrentSpec(ctx, svc, targetVersion, dispatcher)
+	}
+
+	// Found existing deployment version! Point service desired state to this deployment
+	immDep, err := models.DeploymentFromModel(targetDep)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse deployment model: %w", err)
+	}
+
+	// Update service desired state from target deployment config
+	svc.SpecJSON = targetDep.SpecJSON
+	svc.Runtime = immDep.Config.Runtime
+	svc.Command = immDep.Config.Command
+	if immDep.Config.Replicas > 0 {
+		svc.Replicas = immDep.Config.Replicas
+	}
+	svc.Status = "UPDATING"
+	svc.UpdatedAt = now
+
+	if err := store.Services().Update(ctx, svc); err != nil {
+		return nil, fmt.Errorf("failed to update service desired state: %w", err)
+	}
+
+	// Mark all other deployments for this service as SUPERCEDED, mark target as ACTIVE
+	deps, _ := store.Deployments().ListByService(ctx, svc.ID)
+	for _, d := range deps {
+		if d.ID == targetDep.ID {
+			d.Status = string(models.DeploymentStatusActive)
+			d.UpdatedAt = now
+			_ = store.Deployments().Update(ctx, d)
+		} else if d.Status != string(models.DeploymentStatusSuperceded) && d.Status != string(models.DeploymentStatusRolledBack) {
+			d.Status = string(models.DeploymentStatusSuperceded)
+			d.UpdatedAt = now
+			_ = store.Deployments().Update(ctx, d)
+		}
+	}
+
+	// Trigger reconciliation loop to transition workloads from older version tasks to this deployment
+	reconciler := cp.Reconciler
+	if dispatcher != nil {
+		reconciler.SetDispatcher(dispatcher)
+	}
+
+	_, err = reconciler.ReconcileAll(ctx)
+	if err != nil {
+		cp.logger.Warn("Reconciliation during version deploy warning: %v", err)
+	}
+
+	// Fetch active tasks on this deployment
+	allTasks, _ := store.Tasks().ListByService(ctx, svc.ID)
+	var activeTasks []*scheduler.AssignmentResult
+	for _, t := range allTasks {
+		if t.DeploymentID == targetDep.ID && t.State != string(models.TaskStateStopped) && t.State != string(models.TaskStateFailed) && t.State != string(models.TaskStateLost) {
+			activeTasks = append(activeTasks, &scheduler.AssignmentResult{
+				TaskID:    t.ID,
+				WorkerID:  t.WorkerID,
+				State:     models.TaskState(t.State),
+				Timestamp: t.UpdatedAt,
+			})
+		}
+	}
+
+	svcStatus := "RUNNING"
+	if len(activeTasks) < svc.Replicas {
+		if len(activeTasks) == 0 && svc.Replicas > 0 {
+			svcStatus = "FAILED"
+		} else {
+			svcStatus = "DEGRADED"
+		}
+	}
+	if svc.Replicas == 0 {
+		svcStatus = "STOPPED"
+	}
+
+	svc.Status = svcStatus
+	svc.UpdatedAt = time.Now().UTC()
+	_ = store.Services().Update(ctx, svc)
+
+	// Append audit event
+	_ = store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "VERSION_DEPLOYED",
+		Source:    "controlplane",
+		EntityID:  svc.ID,
+		Payload:   fmt.Sprintf(`{"service":"%s","version":"%s","deployment_id":"%s","replicas":%d,"assigned":%d,"status":"%s"}`, svc.Name, targetVersion, targetDep.ID, svc.Replicas, len(activeTasks), svcStatus),
+		CreatedAt: time.Now().UTC(),
+	})
+
+	return &DeployResult{
+		ServiceID:    svc.ID,
+		DeploymentID: targetDep.ID,
+		ServiceName:  svc.Name,
+		Replicas:     svc.Replicas,
+		Status:       svcStatus,
+		Tasks:        activeTasks,
+		CreatedAt:    targetDep.CreatedAt,
+	}, nil
+}
+
+func (cp *ControlPlane) deployNewVersionFromCurrentSpec(ctx context.Context, svc *models.Service, newVersion string, dispatcher scheduler.Dispatcher) (*DeployResult, error) {
+	var svcConfig spec.ServiceConfig
+	if svc.SpecJSON != "" {
+		_ = json.Unmarshal([]byte(svc.SpecJSON), &svcConfig)
+	}
+	svcConfig.Name = svc.Name
+	svcConfig.Version = newVersion
+	if svcConfig.Command == "" {
+		svcConfig.Command = svc.Command
+	}
+	if svcConfig.Runtime == "" {
+		svcConfig.Runtime = svc.Runtime
+	}
+	replicas := svc.Replicas
+	svcConfig.Replicas = &replicas
+
+	return cp.DeployService(ctx, &svcConfig, dispatcher)
 }
 
 // ServiceInspectResult holds full inspection details for a service.

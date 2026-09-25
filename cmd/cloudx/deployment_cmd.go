@@ -158,12 +158,13 @@ func newDeploymentInspectCmd() *cobra.Command {
 					continue
 				}
 				for _, d := range deps {
-					if d.ID.String() == depID {
-						imm, err := models.DeploymentFromModel(d)
-						if err == nil {
-							if imm.ServiceName == "" {
-								imm.ServiceName = svc.Name
-							}
+					imm, err := models.DeploymentFromModel(d)
+					if err == nil {
+						if imm.ServiceName == "" {
+							imm.ServiceName = svc.Name
+						}
+						// Match by exact deployment ID or service:version
+						if d.ID.String() == depID || fmt.Sprintf("%s:%s", svc.Name, imm.Version) == depID || (svc.Name == depID && imm.Status == models.DeploymentStatusActive) {
 							targetDeployment = imm
 							break
 						}

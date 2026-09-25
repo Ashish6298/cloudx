@@ -251,6 +251,38 @@ services:
 	if !strings.Contains(scaleOut, "scaled successfully") || !strings.Contains(scaleOut, "Desired Replicas:  5") {
 		t.Fatalf("expected scale output confirmation, got: %s", scaleOut)
 	}
+
+	// 8. cloudx deploy web-api:v2 (Versioned Deployment CLI test)
+	deployV2Cmd := newRootCmd()
+	deployV2Buf := new(bytes.Buffer)
+	deployV2Cmd.SetOut(deployV2Buf)
+	deployV2Cmd.SetErr(deployV2Buf)
+	deployV2Cmd.SetArgs([]string{"--storage-path", tempDir, "deploy", "web-api:v2"})
+
+	if err := deployV2Cmd.Execute(); err != nil {
+		t.Fatalf("deploy version command failed: %v", err)
+	}
+
+	deployV2Out := deployV2Buf.String()
+	if !strings.Contains(deployV2Out, "web-api") || !strings.Contains(deployV2Out, "Version:    v2") || !strings.Contains(deployV2Out, "[SUCCESS]") {
+		t.Fatalf("expected version deployment success output, got: %s", deployV2Out)
+	}
+
+	// 9. Inspect deployments to verify both v1 and v2 exist simultaneously in state
+	depListV2Cmd := newRootCmd()
+	depListV2Buf := new(bytes.Buffer)
+	depListV2Cmd.SetOut(depListV2Buf)
+	depListV2Cmd.SetErr(depListV2Buf)
+	depListV2Cmd.SetArgs([]string{"--storage-path", tempDir, "deployment", "list"})
+
+	if err := depListV2Cmd.Execute(); err != nil {
+		t.Fatalf("deployment list v2 failed: %v", err)
+	}
+
+	depListV2Out := depListV2Buf.String()
+	if !strings.Contains(depListV2Out, "v1") || !strings.Contains(depListV2Out, "v2") {
+		t.Fatalf("expected both v1 and v2 deployments in listing, got: %s", depListV2Out)
+	}
 }
 
 func TestFailSimulationCLI(t *testing.T) {

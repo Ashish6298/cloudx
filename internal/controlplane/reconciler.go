@@ -190,7 +190,7 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 		}
 
 		desiredReplicas := svc.Replicas
-		actualReplicas := len(activeTasks)
+		_ = len(activeTasks)
 
 		// Parse service spec
 		var svcConfig spec.ServiceConfig
@@ -208,25 +208,50 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 			parsedRes = &spec.ParsedResources{CPUCores: 0.5, MemoryBytes: 256 * 1024 * 1024}
 		}
 
-		// 3. Case A: Actual < Desired -> Scale UP (create tasks)
-		if actualReplicas < desiredReplicas {
-			deficit := desiredReplicas - actualReplicas
-			r.logger.Info("Service %s has deficit of %d replicas (desired: %d, active: %d). Creating tasks...",
-				svc.Name, deficit, desiredReplicas, actualReplicas)
-
-			// Get latest deployment ID if exists
-			var deploymentID id.ID
-			deps, _ := store.Deployments().ListByService(ctx, svc.ID)
-			if len(deps) > 0 {
-				deploymentID = deps[len(deps)-1].ID
+		// 3. Identify active/desired deployment for this service
+		var targetDeployment *models.Deployment
+		deps, _ := store.Deployments().ListByService(ctx, svc.ID)
+		for i := len(deps) - 1; i >= 0; i-- {
+			d := deps[i]
+			if d.Status == string(models.DeploymentStatusActive) || d.Status == "RUNNING" || d.Status == string(models.DeploymentStatusInProgress) {
+				targetDeployment = d
+				break
 			}
+		}
+		if targetDeployment == nil && len(deps) > 0 {
+			targetDeployment = deps[len(deps)-1]
+		}
+
+		var targetDeploymentID id.ID
+		if targetDeployment != nil {
+			targetDeploymentID = targetDeployment.ID
+		}
+
+		// 4. Partition active tasks into matching (current version) and outdated (previous versions)
+		var matchingTasks []*models.Task
+		var outdatedTasks []*models.Task
+		for _, t := range activeTasks {
+			if targetDeploymentID != "" && t.DeploymentID != "" && t.DeploymentID != targetDeploymentID {
+				outdatedTasks = append(outdatedTasks, t)
+			} else {
+				matchingTasks = append(matchingTasks, t)
+			}
+		}
+
+		currentMatching := len(matchingTasks)
+
+		// 5. Case A: Matching < Desired -> Scale UP (create tasks on target deployment)
+		if currentMatching < desiredReplicas {
+			deficit := desiredReplicas - currentMatching
+			r.logger.Info("Service %s has deficit of %d replicas on deployment %s (desired: %d, current: %d). Creating tasks...",
+				svc.Name, deficit, targetDeploymentID, desiredReplicas, currentMatching)
 
 			for i := 0; i < deficit; i++ {
 				taskID := id.NewTaskID()
 				_, err := coordinator.Assign(ctx, scheduler.AssignOptions{
 					TaskID:       taskID,
 					ServiceID:    svc.ID,
-					DeploymentID: deploymentID,
+					DeploymentID: targetDeploymentID,
 					Requirements: &scheduler.TaskRequirements{
 						CPU:             parsedRes.CPUCores,
 						Memory:          parsedRes.MemoryBytes,
@@ -255,19 +280,29 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 				}
 				summary.CreatedTasks++
 			}
-		} else if actualReplicas > desiredReplicas {
-			// 4. Case B: Actual > Desired -> Scale DOWN (remove excess tasks)
-			surplus := actualReplicas - desiredReplicas
-			r.logger.Info("Service %s has surplus of %d replicas (desired: %d, active: %d). Stopping tasks...",
-				svc.Name, surplus, desiredReplicas, actualReplicas)
+		} else if currentMatching > desiredReplicas {
+			// 6. Case B: Matching > Desired -> Scale DOWN surplus matching tasks
+			surplus := currentMatching - desiredReplicas
+			r.logger.Info("Service %s has surplus of %d replicas (desired: %d, matching: %d). Stopping tasks...",
+				svc.Name, surplus, desiredReplicas, currentMatching)
 
-			for i := 0; i < surplus && i < len(activeTasks); i++ {
-				t := activeTasks[i]
+			for i := 0; i < surplus && i < len(matchingTasks); i++ {
+				t := matchingTasks[i]
 				t.State = string(models.TaskStateStopped)
 				t.UpdatedAt = time.Now().UTC()
 				_ = store.Tasks().Update(ctx, t)
 				summary.RemovedTasks++
 			}
+		}
+
+		// 7. Transition/Decommission outdated tasks from previous versions
+		for _, ot := range outdatedTasks {
+			r.logger.Info("Decommissioning outdated task %s (deployment: %s) for service %s...",
+				ot.ID, ot.DeploymentID, svc.Name)
+			ot.State = string(models.TaskStateStopped)
+			ot.UpdatedAt = time.Now().UTC()
+			_ = store.Tasks().Update(ctx, ot)
+			summary.RemovedTasks++
 		}
 
 		// 5. Update derived service status
