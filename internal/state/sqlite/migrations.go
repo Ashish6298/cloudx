@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     name TEXT NOT NULL,
     command TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'PENDING',
+    spec_json TEXT NOT NULL DEFAULT '{}',
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL
 );

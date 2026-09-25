@@ -71,6 +71,7 @@ type Job struct {
 	Name      string    `json:"name"`
 	Command   string    `json:"command"`
 	Status    string    `json:"status"`
+	SpecJSON  string    `json:"spec_json"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

@@ -169,6 +169,10 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 38**: Service Logs *([PHASE_38_COMPLETION_REPORT.md](./docs/reports/PHASE_38_COMPLETION_REPORT.md))*
   - [x] **Phase 39**: Cluster Status *([PHASE_39_COMPLETION_REPORT.md](./docs/reports/PHASE_39_COMPLETION_REPORT.md))*
 - [ ] **Milestone 11: Job Execution** (Phases 40–43)
+  - [x] **Phase 40**: Job Model *([PHASE_40_COMPLETION_REPORT.md](./docs/reports/PHASE_40_COMPLETION_REPORT.md))*
+  - [ ] **Phase 41**: Job Scheduler Integration
+  - [ ] **Phase 42**: Job Lifecycle and Retry
+  - [ ] **Phase 43**: Job CLI
 - [ ] **Milestones 12–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
 
 

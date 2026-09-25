@@ -337,17 +337,21 @@ func (r *taskRepo) Delete(ctx context.Context, idVal id.ID) error {
 type jobRepo struct{ exec dbExecutor }
 
 func (r *jobRepo) Create(ctx context.Context, j *models.Job) error {
-	query := `INSERT INTO jobs (id, name, command, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := r.exec.ExecContext(ctx, query, j.ID.String(), j.Name, j.Command, j.Status, j.CreatedAt, j.UpdatedAt)
+	specJSON := j.SpecJSON
+	if specJSON == "" {
+		specJSON = "{}"
+	}
+	query := `INSERT INTO jobs (id, name, command, status, spec_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := r.exec.ExecContext(ctx, query, j.ID.String(), j.Name, j.Command, j.Status, specJSON, j.CreatedAt, j.UpdatedAt)
 	return err
 }
 
 func (r *jobRepo) Get(ctx context.Context, idVal id.ID) (*models.Job, error) {
-	query := `SELECT id, name, command, status, created_at, updated_at FROM jobs WHERE id = ?`
+	query := `SELECT id, name, command, status, spec_json, created_at, updated_at FROM jobs WHERE id = ?`
 	row := r.exec.QueryRowContext(ctx, query, idVal.String())
 	var j models.Job
 	var idStr string
-	if err := row.Scan(&idStr, &j.Name, &j.Command, &j.Status, &j.CreatedAt, &j.UpdatedAt); err != nil {
+	if err := row.Scan(&idStr, &j.Name, &j.Command, &j.Status, &j.SpecJSON, &j.CreatedAt, &j.UpdatedAt); err != nil {
 		return nil, err
 	}
 	j.ID = id.ID(idStr)
@@ -355,7 +359,7 @@ func (r *jobRepo) Get(ctx context.Context, idVal id.ID) (*models.Job, error) {
 }
 
 func (r *jobRepo) List(ctx context.Context) ([]*models.Job, error) {
-	query := `SELECT id, name, command, status, created_at, updated_at FROM jobs ORDER BY created_at ASC`
+	query := `SELECT id, name, command, status, spec_json, created_at, updated_at FROM jobs ORDER BY created_at ASC`
 	rows, err := r.exec.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -366,7 +370,7 @@ func (r *jobRepo) List(ctx context.Context) ([]*models.Job, error) {
 	for rows.Next() {
 		var j models.Job
 		var idStr string
-		if err := rows.Scan(&idStr, &j.Name, &j.Command, &j.Status, &j.CreatedAt, &j.UpdatedAt); err != nil {
+		if err := rows.Scan(&idStr, &j.Name, &j.Command, &j.Status, &j.SpecJSON, &j.CreatedAt, &j.UpdatedAt); err != nil {
 			return nil, err
 		}
 		j.ID = id.ID(idStr)
@@ -377,8 +381,12 @@ func (r *jobRepo) List(ctx context.Context) ([]*models.Job, error) {
 
 func (r *jobRepo) Update(ctx context.Context, j *models.Job) error {
 	j.UpdatedAt = time.Now().UTC()
-	query := `UPDATE jobs SET name = ?, command = ?, status = ?, updated_at = ? WHERE id = ?`
-	_, err := r.exec.ExecContext(ctx, query, j.Name, j.Command, j.Status, j.UpdatedAt, j.ID.String())
+	specJSON := j.SpecJSON
+	if specJSON == "" {
+		specJSON = "{}"
+	}
+	query := `UPDATE jobs SET name = ?, command = ?, status = ?, spec_json = ?, updated_at = ? WHERE id = ?`
+	_, err := r.exec.ExecContext(ctx, query, j.Name, j.Command, j.Status, specJSON, j.UpdatedAt, j.ID.String())
 	return err
 }
 
