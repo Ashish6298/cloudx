@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/common/version"
 	"github.com/cloudx-org/cloudx/internal/config"
+	"github.com/cloudx-org/cloudx/internal/logs"
 	run "github.com/cloudx-org/cloudx/internal/runtime"
 	"github.com/cloudx-org/cloudx/internal/worker/monitor"
 	v1 "github.com/cloudx-org/cloudx/proto/v1"
@@ -92,11 +94,18 @@ func NewDaemon(opts Options) (*Daemon, error) {
 		tasks:        make(map[string]*v1.Task),
 	}
 
+	logDir := ""
+	if opts.Config.Storage.Path != "" {
+		logDir = filepath.Join(opts.Config.Storage.Path, "logs")
+	}
+	wl := logs.NewWorkloadLogger(logDir, 1000)
+
 	d.taskManager = NewTaskManager(TaskManagerOptions{
-		WorkerID: workerID,
-		Runtime:  opts.Runtime,
-		Reporter: d,
-		Logger:   d.logger,
+		WorkerID:       workerID,
+		Runtime:        opts.Runtime,
+		Reporter:       d,
+		Logger:         d.logger,
+		WorkloadLogger: wl,
 	})
 
 	return d, nil

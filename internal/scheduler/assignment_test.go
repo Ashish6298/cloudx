@@ -134,7 +134,7 @@ func TestAssignmentCoordinator_EndToEndSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get task from task manager: %v", err)
 	}
-	if snap.State != models.TaskStateRunning && snap.State != models.TaskStateStopped {
+	if snap.State != models.TaskStateRunning && snap.State != models.TaskStateHealthy && snap.State != models.TaskStateStopped {
 		t.Fatalf("unexpected task state in worker: %s", snap.State)
 	}
 }

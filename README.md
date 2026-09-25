@@ -153,7 +153,24 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 25**: Reconciliation Engine *([PHASE_25_COMPLETION_REPORT.md](./docs/reports/PHASE_25_COMPLETION_REPORT.md))*
   - [x] **Phase 26**: Replica Scaling *([PHASE_26_COMPLETION_REPORT.md](./docs/reports/PHASE_26_COMPLETION_REPORT.md))*
   - [x] **Phase 27**: Restart Policies *([PHASE_27_COMPLETION_REPORT.md](./docs/reports/PHASE_27_COMPLETION_REPORT.md))*
-- [ ] **Milestones 8–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+- [x] **Milestone 8: Health and Failure Recovery** (Phases 28–31)
+  - [x] **Phase 28**: Health Checks *([PHASE_28_COMPLETION_REPORT.md](./docs/reports/PHASE_28_COMPLETION_REPORT.md))*
+  - [x] **Phase 29**: Automatic Failure Recovery *([PHASE_29_COMPLETION_REPORT.md](./docs/reports/PHASE_29_COMPLETION_REPORT.md))*
+  - [x] **Phase 30**: Failure Simulation *([PHASE_30_COMPLETION_REPORT.md](./docs/reports/PHASE_30_COMPLETION_REPORT.md))*
+  - [x] **Phase 31**: Reconciliation Reliability *([PHASE_31_COMPLETION_REPORT.md](./docs/reports/PHASE_31_COMPLETION_REPORT.md))*
+- [x] **Milestone 9: Deployments and Rollbacks** (Phases 32–35)
+  - [x] **Phase 32**: Deployment Model *([PHASE_32_COMPLETION_REPORT.md](./docs/reports/PHASE_32_COMPLETION_REPORT.md))*
+  - [x] **Phase 33**: Versioned Deployment *([PHASE_33_COMPLETION_REPORT.md](./docs/reports/PHASE_33_COMPLETION_REPORT.md))*
+  - [x] **Phase 34**: Rolling Deployment *([PHASE_34_COMPLETION_REPORT.md](./docs/reports/PHASE_34_COMPLETION_REPORT.md))*
+  - [x] **Phase 35**: Rollback Strategy *([PHASE_35_COMPLETION_REPORT.md](./docs/reports/PHASE_35_COMPLETION_REPORT.md))*
+- [x] **Milestone 10: Events, Logs and Auditability** (Phases 36–39)
+  - [x] **Phase 36**: Event System *([PHASE_36_COMPLETION_REPORT.md](./docs/reports/PHASE_36_COMPLETION_REPORT.md))*
+  - [x] **Phase 37**: Event CLI *([PHASE_37_COMPLETION_REPORT.md](./docs/reports/PHASE_37_COMPLETION_REPORT.md))*
+  - [x] **Phase 38**: Service Logs *([PHASE_38_COMPLETION_REPORT.md](./docs/reports/PHASE_38_COMPLETION_REPORT.md))*
+  - [x] **Phase 39**: Cluster Status *([PHASE_39_COMPLETION_REPORT.md](./docs/reports/PHASE_39_COMPLETION_REPORT.md))*
+- [ ] **Milestone 11: Job Execution** (Phases 40–43)
+- [ ] **Milestones 12–88**: Full orchestration, scheduling, reconciliation, failover, rolling updates, volumes, and release audit.
+
 
 
 

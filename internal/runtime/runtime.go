@@ -24,6 +24,8 @@ type ProcessSpec struct {
 	Args        []string          `json:"args,omitempty" yaml:"args,omitempty"`
 	Environment map[string]string `json:"environment,omitempty" yaml:"environment,omitempty"`
 	WorkingDir  string            `json:"working_dir,omitempty" yaml:"working_dir,omitempty"`
+	Stdout      io.Writer         `json:"-" yaml:"-"`
+	Stderr      io.Writer         `json:"-" yaml:"-"`
 }
 
 // ProcessStatus represents the runtime status of a process.

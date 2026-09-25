@@ -156,9 +156,13 @@ func (fd *FailureDetector) EvaluateWorkers(ctx context.Context, now time.Time) {
 					w.ID, oldStatus, targetStatus, elapsed.Round(time.Millisecond))
 
 				// Append state transition event
+				eventType := fmt.Sprintf("WORKER_STATUS_%s", targetStatus)
+				if targetStatus == StatusLost {
+					eventType = "WORKER_LOST"
+				}
 				_ = fd.store.Events().Append(ctx, &models.Event{
 					ID:        id.NewEventID(),
-					Type:      fmt.Sprintf("WORKER_STATUS_%s", targetStatus),
+					Type:      eventType,
 					Source:    "failure_detector",
 					EntityID:  w.ID,
 					Payload:   fmt.Sprintf(`{"previous":"%s","current":"%s","elapsed_ms":%d}`, oldStatus, targetStatus, elapsed.Milliseconds()),

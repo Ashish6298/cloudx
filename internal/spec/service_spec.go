@@ -23,17 +23,27 @@ type ServiceConfigFile struct {
 // ServiceConfig defines the declarative specification of a single service workload.
 type ServiceConfig struct {
 	Name          string             `yaml:"name,omitempty" json:"name,omitempty"`
+	Version       string             `yaml:"version,omitempty" json:"version,omitempty"`
+	Artifact      string             `yaml:"artifact,omitempty" json:"artifact,omitempty"`
 	Command       string             `yaml:"command" json:"command"`
 	Args          []string           `yaml:"args,omitempty" json:"args,omitempty"`
 	Environment   map[string]string  `yaml:"environment,omitempty" json:"environment,omitempty"`
 	WorkingDir    string             `yaml:"working_dir,omitempty" json:"working_dir,omitempty"`
 	Replicas      *int               `yaml:"replicas,omitempty" json:"replicas,omitempty"`
 	Runtime       string             `yaml:"runtime,omitempty" json:"runtime,omitempty"`
-	Resources     ResourceConfig     `yaml:"resources,omitempty" json:"resources,omitempty"`
-	RestartPolicy *RestartPolicySpec `yaml:"restart_policy,omitempty" json:"restart_policy,omitempty"`
-	HealthCheck   *HealthCheckConfig `yaml:"health_check,omitempty" json:"health_check,omitempty"`
-	Ports         []PortSpec         `yaml:"ports,omitempty" json:"ports,omitempty"`
-	Volumes       []VolumeSpec       `yaml:"volumes,omitempty" json:"volumes,omitempty"`
+	Resources      ResourceConfig        `yaml:"resources,omitempty" json:"resources,omitempty"`
+	RestartPolicy  *RestartPolicySpec    `yaml:"restart_policy,omitempty" json:"restart_policy,omitempty"`
+	HealthCheck    *HealthCheckConfig    `yaml:"health_check,omitempty" json:"health_check,omitempty"`
+	UpdateStrategy *UpdateStrategyConfig `yaml:"update_strategy,omitempty" json:"update_strategy,omitempty"`
+	Ports          []PortSpec            `yaml:"ports,omitempty" json:"ports,omitempty"`
+	Volumes        []VolumeSpec          `yaml:"volumes,omitempty" json:"volumes,omitempty"`
+}
+
+// UpdateStrategyConfig defines parameters for rollout strategies.
+type UpdateStrategyConfig struct {
+	Type          string `yaml:"type,omitempty" json:"type,omitempty"` // "rolling", "recreate"
+	MaxUnavailable int    `yaml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
+	MaxSurge       int    `yaml:"max_surge,omitempty" json:"max_surge,omitempty"`
 }
 
 // ResourceConfig defines the CPU and Memory bounds for a service.
@@ -257,7 +267,25 @@ func (s *ServiceConfig) Validate() (*ParsedResources, error) {
 		}
 	}
 
-	// 8. Ports validation
+	// 8. Update Strategy validation
+	if s.UpdateStrategy != nil {
+		if s.UpdateStrategy.Type == "" {
+			s.UpdateStrategy.Type = "rolling"
+		} else {
+			st := strings.ToLower(s.UpdateStrategy.Type)
+			if st != "rolling" && st != "recreate" {
+				errs = append(errs, fmt.Sprintf("invalid update_strategy type '%s': must be 'rolling' or 'recreate'", s.UpdateStrategy.Type))
+			}
+		}
+		if s.UpdateStrategy.MaxUnavailable < 0 {
+			errs = append(errs, "update_strategy max_unavailable cannot be negative")
+		}
+		if s.UpdateStrategy.MaxSurge < 0 {
+			errs = append(errs, "update_strategy max_surge cannot be negative")
+		}
+	}
+
+	// 9. Ports validation
 	for i, p := range s.Ports {
 		if p.HostPort < 1 || p.HostPort > 65535 {
 			errs = append(errs, fmt.Sprintf("ports[%d]: invalid host port %d (must be between 1 and 65535)", i, p.HostPort))

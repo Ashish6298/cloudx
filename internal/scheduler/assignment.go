@@ -8,6 +8,7 @@ import (
 
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
+	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state"
 	"github.com/cloudx-org/cloudx/internal/state/models"
 	v1 "github.com/cloudx-org/cloudx/proto/v1"
@@ -20,13 +21,14 @@ type Dispatcher interface {
 
 // TaskSpec specifies execution parameters for a task workload.
 type TaskSpec struct {
-	Command       string               `json:"command"`
-	Args          []string             `json:"args,omitempty"`
-	Environment   map[string]string    `json:"environment,omitempty"`
-	WorkingDir    string               `json:"working_dir,omitempty"`
-	Runtime       string               `json:"runtime,omitempty"`
-	RestartPolicy models.RestartPolicy `json:"restart_policy,omitempty"`
-	SpecJSON      string               `json:"spec_json,omitempty"`
+	Command       string                  `json:"command"`
+	Args          []string                `json:"args,omitempty"`
+	Environment   map[string]string       `json:"environment,omitempty"`
+	WorkingDir    string                  `json:"working_dir,omitempty"`
+	Runtime       string                  `json:"runtime,omitempty"`
+	RestartPolicy models.RestartPolicy    `json:"restart_policy,omitempty"`
+	HealthCheck   *spec.HealthCheckConfig `json:"health_check,omitempty"`
+	SpecJSON      string                  `json:"spec_json,omitempty"`
 }
 
 // AssignOptions configures task assignment execution.
@@ -193,6 +195,16 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 			return nil, fmt.Errorf("worker dispatch failed for task %s on worker %s: %w", opts.TaskID, targetWorker.ID, err)
 		}
 	}
+
+	// 5. Append TASK_ASSIGNED audit event
+	_ = ac.store.Events().Append(ctx, &models.Event{
+		ID:        id.NewEventID(),
+		Type:      "TASK_ASSIGNED",
+		Source:    "assignment_coordinator",
+		EntityID:  opts.TaskID,
+		Payload:   fmt.Sprintf(`{"worker_id":"%s","service_id":"%s","deployment_id":"%s","score":%.2f}`, decision.WorkerID, opts.ServiceID, opts.DeploymentID, decision.Score),
+		CreatedAt: now,
+	})
 
 	return &AssignmentResult{
 		TaskID:    opts.TaskID,
