@@ -131,8 +131,15 @@ func (tm *TaskManager) AssignTask(ctx context.Context, assignment TaskAssignment
 		return errors.New("task manager is closed")
 	}
 
-	if _, exists := tm.tasks[assignment.TaskID]; exists {
+	if existing, exists := tm.tasks[assignment.TaskID]; exists {
+		existing.mu.RLock()
+		isTerm := transitions.IsTerminal(existing.State)
+		existing.mu.RUnlock()
 		tm.mu.Unlock()
+		if !isTerm {
+			// Idempotent retry of active assignment
+			return nil
+		}
 		return ErrTaskAlreadyExists
 	}
 
@@ -193,10 +200,24 @@ func (tm *TaskManager) transitionTask(ctx context.Context, task *ManagedTask, ne
 
 // executeTask handles the full runtime lifecycle: ASSIGNED -> STARTING -> RUNNING -> STOPPED/FAILED.
 func (tm *TaskManager) executeTask(ctx context.Context, task *ManagedTask) {
+	select {
+	case <-ctx.Done():
+		_ = tm.transitionTask(context.Background(), task, models.TaskStateStopped)
+		return
+	default:
+	}
+
 	// 1. Transition ASSIGNED -> STARTING
 	if err := tm.transitionTask(ctx, task, models.TaskStateStarting); err != nil {
 		tm.logger.Error("Failed to transition task %s to STARTING: %v", task.Assignment.TaskID, err)
 		return
+	}
+
+	select {
+	case <-ctx.Done():
+		_ = tm.transitionTask(context.Background(), task, models.TaskStateStopped)
+		return
+	default:
 	}
 
 	// 2. Start Runtime Process
@@ -458,6 +479,10 @@ func (tm *TaskManager) StopTask(ctx context.Context, taskID id.ID) error {
 
 	if !ok {
 		return ErrTaskNotFound
+	}
+
+	if tm.healthMonitor != nil {
+		tm.healthMonitor.UnregisterTask(taskID)
 	}
 
 	task.mu.RLock()

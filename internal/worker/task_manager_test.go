@@ -171,10 +171,40 @@ func TestTaskManager_PreventDuplicateExecution(t *testing.T) {
 		t.Fatalf("first assignment failed: %v", err)
 	}
 
-	// Duplicate assignment must be rejected
+	// Wait for task to reach RUNNING
+	for i := 0; i < 40; i++ {
+		time.Sleep(50 * time.Millisecond)
+		snap, err := tm.GetTask(taskID)
+		if err == nil && snap.State == models.TaskStateRunning {
+			break
+		}
+	}
+
+	// Duplicate assignment of running task is an idempotent success
+	err = tm.AssignTask(context.Background(), assignment)
+	if err != nil {
+		t.Fatalf("expected idempotent success on duplicate assignment, got %v", err)
+	}
+
+	// Stop task
+	_ = tm.StopTask(context.Background(), taskID)
+	var stopped bool
+	for i := 0; i < 60; i++ {
+		time.Sleep(100 * time.Millisecond)
+		snap, err := tm.GetTask(taskID)
+		if err == nil && snap.State == models.TaskStateStopped {
+			stopped = true
+			break
+		}
+	}
+	if !stopped {
+		t.Fatalf("task failed to reach STOPPED state within timeout")
+	}
+
+	// Re-assignment of terminated task must return ErrTaskAlreadyExists
 	err = tm.AssignTask(context.Background(), assignment)
 	if err != ErrTaskAlreadyExists {
-		t.Fatalf("expected ErrTaskAlreadyExists on duplicate assignment, got %v", err)
+		t.Fatalf("expected ErrTaskAlreadyExists on terminal re-assignment, got %v", err)
 	}
 }
 
@@ -402,13 +432,18 @@ func TestTaskManager_RestartPolicy_Always_CleanExit(t *testing.T) {
 	}
 
 	// Clean exits with always restart policy trigger restarts
-	time.Sleep(250 * time.Millisecond)
-	st, err := tm.GetTask(taskID)
-	if err != nil {
-		t.Fatalf("failed to get task: %v", err)
+	var restarted bool
+	for i := 0; i < 40; i++ {
+		time.Sleep(50 * time.Millisecond)
+		st, err := tm.GetTask(taskID)
+		if err == nil && st.RestartCount >= 1 {
+			restarted = true
+			break
+		}
 	}
-	if st.RestartCount < 1 {
-		t.Fatalf("expected at least 1 restart for 'always' restart policy, got %d", st.RestartCount)
+	if !restarted {
+		st, _ := tm.GetTask(taskID)
+		t.Fatalf("expected at least 1 restart for 'always' restart policy, got %v", st)
 	}
 }
 
