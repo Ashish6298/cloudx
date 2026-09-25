@@ -163,12 +163,13 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 			continue
 		}
 
-		// 2. Check for orphaned tasks on LOST or UNHEALTHY workers
+		// 2. Check for orphaned tasks on LOST or UNHEALTHY workers, and unrecoverable task failures
 		var activeTasks []*models.Task
 		for _, t := range tasks {
 			workerStatus := workerStatusMap[t.WorkerID]
 			isTerminated := t.State == string(models.TaskStateStopped) ||
 				t.State == string(models.TaskStateFailed) ||
+				t.State == string(models.TaskStateCrashLoop) ||
 				t.State == string(models.TaskStateLost)
 
 			if !isTerminated && (workerStatus == "LOST" || workerStatus == "UNHEALTHY" || workerStatus == "") {
@@ -182,6 +183,7 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 				continue
 			}
 
+			// If task is in CRASH_LOOP or unrecoverable FAILED on a worker, mark it for replacement by not counting towards active replicas
 			if !isTerminated {
 				activeTasks = append(activeTasks, t)
 			}

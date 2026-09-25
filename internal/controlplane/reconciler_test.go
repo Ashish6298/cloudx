@@ -256,3 +256,68 @@ func TestReconciler_OrphanedTaskOnLostWorker(t *testing.T) {
 		t.Fatalf("expected replacement task assigned to w2, got %+v", replacementTask)
 	}
 }
+
+func TestReconciler_FailureRecovery_CrashLoopReplacement(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer store.Close()
+
+	logger := logging.NewDefaultLogger()
+	now := time.Now().UTC()
+
+	workerID := id.NewWorkerID()
+	nodeID := id.NewNodeID()
+	_ = store.Nodes().Create(ctx, &models.Node{ID: nodeID, Name: "node-1", Status: "READY", CreatedAt: now, UpdatedAt: now})
+	_ = store.Workers().Create(ctx, &models.Worker{ID: workerID, NodeID: nodeID, Status: "READY", Heartbeat: now, CreatedAt: now, UpdatedAt: now})
+
+	tm := worker.NewTaskManager(worker.TaskManagerOptions{WorkerID: workerID, Runtime: runtime.NewNativeRuntime(), Logger: logger})
+	defer tm.Close()
+	dispatcher := scheduler.NewInProcessDispatcher()
+	dispatcher.RegisterWorkerHandler(workerID, func(ctx context.Context, req *v1.TaskAssignmentRequest) error {
+		return tm.AssignTask(ctx, worker.TaskAssignment{TaskID: id.ID(req.Task.Id), Command: req.Command})
+	})
+
+	// Service with desired replicas = 1
+	serviceID := id.NewServiceID()
+	_ = store.Services().Create(ctx, &models.Service{
+		ID:        serviceID,
+		Name:      "api-server",
+		Replicas:  1,
+		Command:   "go",
+		Status:    "DEGRADED",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	// Task entered CRASH_LOOP
+	crashLoopTaskID := id.NewTaskID()
+	_ = store.Tasks().Create(ctx, &models.Task{
+		ID:        crashLoopTaskID,
+		ServiceID: serviceID,
+		WorkerID:  workerID,
+		State:     string(models.TaskStateCrashLoop),
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	reconciler := NewReconciler(ReconcilerConfig{}, store, scheduler.NewBasicScheduler(), dispatcher, logger)
+
+	// Reconcile pass: recognizes active replicas = 0 (due to CRASH_LOOP), schedules replacement task
+	summary, err := reconciler.ReconcileAll(ctx)
+	if err != nil {
+		t.Fatalf("reconcile failed: %v", err)
+	}
+
+	if summary.CreatedTasks != 1 {
+		t.Fatalf("expected 1 replacement task scheduled for crash-looped task, got %d", summary.CreatedTasks)
+	}
+
+	// Verify replacement task is created in store
+	tasks, _ := store.Tasks().ListByService(ctx, serviceID)
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 tasks in store (1 CRASH_LOOP, 1 replacement), got %d", len(tasks))
+	}
+}
