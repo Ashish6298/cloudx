@@ -45,6 +45,7 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.AddCommand(newRollbackCmd())
 	cmd.AddCommand(newEventsCmd())
 	cmd.AddCommand(newServiceCmd())
+	cmd.AddCommand(newJobCmd())
 	cmd.AddCommand(newFailCmd())
 	return cmd
 }

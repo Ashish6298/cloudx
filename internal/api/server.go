@@ -411,6 +411,34 @@ func (s *Server) ReportTaskStatus(ctx context.Context, req *v1.ReportTaskStatusR
 		return nil, status.Errorf(codes.Internal, "failed to update task status: %v", err)
 	}
 
+	// If task is associated with a Job, sync Job state
+	if task.JobID != "" {
+		if job, err := s.store.Jobs().Get(ctx, task.JobID); err == nil && job != nil {
+			jobRec, _ := models.JobFromModel(job)
+			if jobRec != nil {
+				jobRec.ExitCode = task.ExitCode
+				switch targetState {
+				case models.TaskStateRunning:
+					_ = jobRec.Transition(models.JobStateRunning)
+				case models.TaskStateStopped:
+					if task.ExitCode == 0 {
+						_ = jobRec.Transition(models.JobStateSucceeded)
+					} else {
+						_ = jobRec.Transition(models.JobStateFailed)
+					}
+				case models.TaskStateFailed, models.TaskStateCrashLoop:
+					_ = jobRec.Transition(models.JobStateFailed)
+				}
+				job.Status = string(jobRec.State)
+				job.UpdatedAt = time.Now().UTC()
+				if specJSON, err := jobRec.ToSpecJSON(); err == nil {
+					job.SpecJSON = specJSON
+				}
+				_ = s.store.Jobs().Update(ctx, job)
+			}
+		}
+	}
+
 	// Append process/task lifecycle event
 	now := time.Now().UTC()
 	var eventType string
