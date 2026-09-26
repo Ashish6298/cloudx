@@ -30,6 +30,9 @@ type TaskRequirements struct {
 	// Storage-aware scheduling: the selected worker must own ALL listed volumes.
 	// A task may list zero volumes (no storage constraint).
 	RequiredVolumes []string          `json:"required_volumes,omitempty"`
+	// RequiredPorts lists the host ports (e.g. 8080 or "8080/tcp") that must be bound on the worker.
+	// Used for port conflict prevention during scheduling.
+	RequiredPorts   []int             `json:"required_ports,omitempty"`
 }
 
 // WorkerCapacity represents the hardware and runtime profile of a candidate worker.
@@ -50,6 +53,8 @@ type WorkerCapacity struct {
 	// Used for storage-aware scheduling: tasks requiring a local volume are only placed
 	// on the worker that owns the volume.
 	VolumeNames         []string          `json:"volume_names,omitempty"`
+	// AllocatedPorts tracks host ports currently allocated/bound by active running tasks on this worker.
+	AllocatedPorts      []int             `json:"allocated_ports,omitempty"`
 }
 
 // CPUAvailable returns the unallocated CPU cores on this worker.
@@ -161,6 +166,24 @@ func CanFit(worker *WorkerCapacity, req *TaskRequirements) FitResult {
 				reasons = append(reasons, fmt.Sprintf(
 					"volume affinity unmet: task requires volume '%s' but worker '%s' does not own it (worker volumes: %v)",
 					reqVol, worker.WorkerID, worker.VolumeNames,
+				))
+			}
+		}
+	}
+
+	// 7. Port Mapping and Conflict check
+	// A task that requires explicit host port(s) cannot be scheduled onto a worker
+	// where any of those host ports are already allocated to an active running task.
+	if len(req.RequiredPorts) > 0 {
+		allocatedPortSet := make(map[int]bool, len(worker.AllocatedPorts))
+		for _, p := range worker.AllocatedPorts {
+			allocatedPortSet[p] = true
+		}
+		for _, reqPort := range req.RequiredPorts {
+			if allocatedPortSet[reqPort] {
+				reasons = append(reasons, fmt.Sprintf(
+					"port conflict: host port %d is already in use by an active task on worker %s",
+					reqPort, worker.WorkerID,
 				))
 			}
 		}

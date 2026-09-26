@@ -219,6 +219,20 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 			parsedRes = &spec.ParsedResources{CPUCores: 0.5, MemoryBytes: 256 * 1024 * 1024}
 		}
 
+		// Extract port and volume requirements for scheduling constraints
+		var svcHostPorts []int
+		for _, p := range svcConfig.Ports {
+			if p.HostPort > 0 {
+				svcHostPorts = append(svcHostPorts, p.HostPort)
+			}
+		}
+		var svcVolNames []string
+		for _, v := range svcConfig.Volumes {
+			if v.VolumeName != "" {
+				svcVolNames = append(svcVolNames, v.VolumeName)
+			}
+		}
+
 		// 3. Identify active/desired deployment for this service
 		var targetDeployment *models.Deployment
 		deps, _ := store.Deployments().ListByService(ctx, svc.ID)
@@ -306,13 +320,17 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 							CPU:             parsedRes.CPUCores,
 							Memory:          parsedRes.MemoryBytes,
 							RequiredRuntime: svc.Runtime,
+							RequiredPorts:   svcHostPorts,
+							RequiredVolumes: svcVolNames,
 						},
 						Spec: scheduler.TaskSpec{
-							Command:       svcConfig.Command,
-							Args:          svcConfig.Args,
-							Environment:   svcConfig.Environment,
-							WorkingDir:    svcConfig.WorkingDir,
-							Runtime:       svc.Runtime,
+							Command:         svcConfig.Command,
+							Args:            svcConfig.Args,
+							Environment:     svcConfig.Environment,
+							WorkingDir:      svcConfig.WorkingDir,
+							Runtime:         svc.Runtime,
+							RequiredPorts:   svcHostPorts,
+							RequiredVolumes: svcVolNames,
 							RestartPolicy: models.RestartPolicy{
 								Type: func() models.RestartPolicyType {
 									if svcConfig.RestartPolicy != nil {
@@ -358,13 +376,17 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 							CPU:             parsedRes.CPUCores,
 							Memory:          parsedRes.MemoryBytes,
 							RequiredRuntime: svc.Runtime,
+							RequiredPorts:   svcHostPorts,
+							RequiredVolumes: svcVolNames,
 						},
 						Spec: scheduler.TaskSpec{
-							Command:       svcConfig.Command,
-							Args:          svcConfig.Args,
-							Environment:   svcConfig.Environment,
-							WorkingDir:    svcConfig.WorkingDir,
-							Runtime:       svc.Runtime,
+							Command:         svcConfig.Command,
+							Args:            svcConfig.Args,
+							Environment:     svcConfig.Environment,
+							WorkingDir:      svcConfig.WorkingDir,
+							Runtime:         svc.Runtime,
+							RequiredPorts:   svcHostPorts,
+							RequiredVolumes: svcVolNames,
 							RestartPolicy: models.RestartPolicy{
 								Type: func() models.RestartPolicyType {
 									if svcConfig.RestartPolicy != nil {

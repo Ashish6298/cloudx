@@ -209,6 +209,32 @@ func TestServiceConfig_ValidationErrors(t *testing.T) {
 			errMatch: "invalid host port 70000",
 		},
 		{
+			name: "duplicate host port",
+			svc: ServiceConfig{
+				Name:    "api",
+				Command: "./api",
+				Ports: []PortSpec{
+					{HostPort: 8080, ServicePort: 8000, Protocol: "tcp"},
+					{HostPort: 8080, ServicePort: 8001, Protocol: "tcp"},
+				},
+			},
+			wantErr:  true,
+			errMatch: "duplicate host port 8080/tcp",
+		},
+		{
+			name: "duplicate service port",
+			svc: ServiceConfig{
+				Name:    "api",
+				Command: "./api",
+				Ports: []PortSpec{
+					{HostPort: 8080, ServicePort: 8000, Protocol: "tcp"},
+					{HostPort: 8081, ServicePort: 8000, Protocol: "tcp"},
+				},
+			},
+			wantErr:  true,
+			errMatch: "duplicate service port 8000/tcp",
+		},
+		{
 			name: "invalid cpu format",
 			svc: ServiceConfig{
 				Name:    "api",
