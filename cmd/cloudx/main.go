@@ -50,6 +50,7 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.AddCommand(newNetworkCmd())
 	cmd.AddCommand(newNodeCmd())
 	cmd.AddCommand(newTaskCmd())
+	cmd.AddCommand(newMetricsCmd())
 	cmd.AddCommand(newFailCmd())
 	return cmd
 }

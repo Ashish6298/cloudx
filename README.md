@@ -58,6 +58,7 @@ cloudx/
 │   ├── controlplane/     # Central control plane logic & reconciler
 │   ├── events/           # Audit trail and event engine
 │   ├── health/           # Heartbeat and health check probes
+│   ├── metrics/          # Metrics model: counters, gauges, histograms (Phase 58)
 │   ├── registry/         # Service discovery & endpoint registry
 │   ├── runtime/          # Process runtime abstractions
 │   ├── scheduler/        # Deterministic scoring & placement engine
@@ -190,11 +191,40 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
 - [x] **Milestone 15: Resource-Aware Orchestration** (Phases 55–57 ✅ complete)
   - [x] **Phase 56**: Improved Scheduling Score *([PHASE_56_COMPLETION_REPORT.md](./docs/reports/PHASE_56_COMPLETION_REPORT.md))*
   - [x] **Phase 57**: Scheduling Explanation *([PHASE_57_COMPLETION_REPORT.md](./docs/reports/PHASE_57_COMPLETION_REPORT.md))*
-- [ ] **Milestone 16: Observability** (Phases 58–61)
-  - [ ] **Phase 58**: Metrics Model
+- [x] **Milestone 16: Observability** (Phases 58–61 — in progress)
+  - [x] **Phase 58**: Metrics Model *([PHASE_58_COMPLETION_REPORT.md](./docs/reports/PHASE_58_COMPLETION_REPORT.md))*
   - [ ] **Phase 59**: OpenTelemetry-Compatible Architecture
   - [ ] **Phase 60**: Diagnostics
 - [ ] **Milestones 17–88**: DNS resolution, load balancing, security, ingress, multi-node mesh, and release audit.
+
+---
+
+## Observability — `cloudx metrics show`
+
+Phase 58 introduces a lightweight, in-process metrics model with no external dependencies:
+
+```bash
+# Show all cluster metrics
+./bin/cloudx metrics show
+
+# Filter by domain
+./bin/cloudx metrics show --domain worker
+./bin/cloudx metrics show --domain service
+./bin/cloudx metrics show --domain controlplane
+./bin/cloudx metrics show --domain job
+
+# Machine-readable JSON output
+./bin/cloudx metrics show --json
+```
+
+### Metric Domains
+
+| Domain | Metrics |
+|--------|--------|
+| **Control Plane** | reconciliation cycles/failures/duration, scheduling latency/decisions/failures, RPC failures, state CRUD counters |
+| **Worker** | CPU usage %, memory used/avail/total bytes, active task count, process restarts, heartbeat counters |
+| **Service** | replicas desired, replicas running, health failures, restart count |
+| **Job** | execution duration histogram, succeeded/failed/cancelled/retry counters |
 
 
 
