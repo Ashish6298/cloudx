@@ -280,7 +280,9 @@ func (s *Server) Heartbeat(ctx context.Context, req *v1.HeartbeatRequest) (*v1.H
 	}
 
 	worker.Heartbeat = time.Now().UTC()
-	worker.Status = "READY"
+	if worker.Status != "DRAINING" && worker.Status != "EMPTY" {
+		worker.Status = "READY"
+	}
 	if err := s.store.Workers().Update(ctx, worker); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update worker heartbeat: %v", err)
 	}

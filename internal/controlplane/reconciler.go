@@ -194,6 +194,27 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 				continue
 			}
 
+			if !isTerminated && workerStatus == "DRAINING" {
+				// Task is running on a DRAINING worker! Gracefully stop it and trigger replacement
+				r.logger.Info("Task %s is running on DRAINING worker %s. Stopping task and rescheduling elsewhere...",
+					t.ID, t.WorkerID)
+				t.State = string(models.TaskStateStopped)
+				t.UpdatedAt = time.Now().UTC()
+				_ = store.Tasks().Update(ctx, t)
+				summary.RemovedTasks++
+
+				// Append TASK_EVICTED event
+				_ = store.Events().Append(ctx, &models.Event{
+					ID:        id.NewEventID(),
+					Type:      "TASK_EVICTED",
+					Source:    "reconciler",
+					EntityID:  t.ID,
+					Payload:   fmt.Sprintf(`{"service_id":"%s","worker_id":"%s","reason":"node_draining"}`, svc.ID, t.WorkerID),
+					CreatedAt: time.Now().UTC(),
+				})
+				continue
+			}
+
 			// If task is in CRASH_LOOP or unrecoverable FAILED on a worker, mark it for replacement by not counting towards active replicas
 			if !isTerminated {
 				activeTasks = append(activeTasks, t)
@@ -490,6 +511,36 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 			svc.Status = newStatus
 			svc.UpdatedAt = time.Now().UTC()
 			_ = store.Services().Update(ctx, svc)
+		}
+	}
+
+	// 6. Check DRAINING workers: if a DRAINING worker has 0 active tasks, transition status DRAINING -> EMPTY
+	allTasks, err := store.Tasks().List(ctx)
+	if err == nil {
+		workerActiveCount := make(map[id.ID]int)
+		for _, t := range allTasks {
+			if t.State != string(models.TaskStateStopped) && t.State != string(models.TaskStateFailed) && t.State != string(models.TaskStateLost) {
+				workerActiveCount[t.WorkerID]++
+			}
+		}
+
+		for _, w := range workers {
+			if w.Status == "DRAINING" && workerActiveCount[w.ID] == 0 {
+				r.logger.Info("Worker %s has 0 active tasks remaining. Transitioning DRAINING -> EMPTY.", w.ID)
+				w.Status = "EMPTY"
+				w.UpdatedAt = time.Now().UTC()
+				_ = store.Workers().Update(ctx, w)
+
+				// Append WORKER_EMPTY event
+				_ = store.Events().Append(ctx, &models.Event{
+					ID:        id.NewEventID(),
+					Type:      "WORKER_EMPTY",
+					Source:    "reconciler",
+					EntityID:  w.ID,
+					Payload:   fmt.Sprintf(`{"node_id":"%s","status":"EMPTY"}`, w.NodeID),
+					CreatedAt: time.Now().UTC(),
+				})
+			}
 		}
 	}
 
