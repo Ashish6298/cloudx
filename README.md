@@ -191,17 +191,17 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
 - [x] **Milestone 15: Resource-Aware Orchestration** (Phases 55–57 ✅ complete)
   - [x] **Phase 56**: Improved Scheduling Score *([PHASE_56_COMPLETION_REPORT.md](./docs/reports/PHASE_56_COMPLETION_REPORT.md))*
   - [x] **Phase 57**: Scheduling Explanation *([PHASE_57_COMPLETION_REPORT.md](./docs/reports/PHASE_57_COMPLETION_REPORT.md))*
-- [x] **Milestone 16: Observability** (Phases 58–61 — in progress)
+- [x] **Milestone 16: Observability** (Phases 58–60 ✅ complete)
   - [x] **Phase 58**: Metrics Model *([PHASE_58_COMPLETION_REPORT.md](./docs/reports/PHASE_58_COMPLETION_REPORT.md))*
   - [x] **Phase 59**: OpenTelemetry-Compatible Architecture *([PHASE_59_COMPLETION_REPORT.md](./docs/reports/PHASE_59_COMPLETION_REPORT.md))*
-  - [ ] **Phase 60**: Diagnostics
-- [ ] **Milestones 17–88**: DNS resolution, load balancing, security, ingress, multi-node mesh, and release audit.
+  - [x] **Phase 60**: Diagnostics *([PHASE_60_COMPLETION_REPORT.md](./docs/reports/PHASE_60_COMPLETION_REPORT.md))*
+- [ ] **Milestones 17–88**: CLI maturity, DNS resolution, load balancing, security, ingress, multi-node mesh, and release audit.
 
 ---
 
 ## Observability & Telemetry
 
-CloudX provides rich in-process metrics and OpenTelemetry-compatible tracing with **zero required external infrastructure**.
+CloudX provides rich in-process metrics, OpenTelemetry-compatible tracing, and cluster diagnostics with **zero required external infrastructure**.
 
 ### 1. In-Process Metrics (`cloudx metrics show`)
 
@@ -252,6 +252,37 @@ Phase 59 introduces OpenTelemetry-compatible tracing and metric bridging:
 #### Standalone vs. Hybrid Mode
 - **Standalone Mode (Default):** Spans and metrics are captured in-memory using an efficient FIFO ring buffer. No external server (Collector/Jaeger/Tempo) is required.
 - **Hybrid / Export Mode:** Set `CLOUDX_OTEL_ENDPOINT=http://localhost:4318` (or configure `telemetry.otlp_endpoint` in `cloudx.yaml`) to automatically stream OTLP HTTP/JSON trace spans to any OpenTelemetry collector while preserving local standalone functionality.
+
+---
+
+### 3. Cluster Diagnostics (`cloudx diagnose`)
+
+Phase 60 introduces a single diagnostic tool to identify common CloudX problems across 9 core vectors:
+
+```bash
+# Run comprehensive diagnostic checks across cluster
+./bin/cloudx diagnose
+
+# Aliases
+./bin/cloudx doctor
+./bin/cloudx diag
+
+# Output machine-readable JSON report
+./bin/cloudx diagnose --json
+```
+
+#### Diagnostic Vectors Evaluated
+
+1. **Configuration:** Validates semantic structure, storage paths, and filesystem write permissions.
+2. **Database Integrity:** Runs SQLite `PRAGMA integrity_check` and `PRAGMA foreign_key_check` on `cloudx.db`.
+3. **Control Plane Health:** Tests TCP listener reachability and control plane daemon state.
+4. **Worker Connectivity:** Inspects registered worker daemons and verifies TCP network reachability.
+5. **Heartbeat Status:** Evaluates heartbeat timestamps and detects `SUSPECTED`, `UNHEALTHY`, or `LOST` workers.
+6. **Scheduler Status:** Checks active schedulable workers in `READY` state.
+7. **Orphaned Tasks:** Identifies stranded tasks on dead/lost workers and crashlooping workloads.
+8. **Failed Deployments:** Detects degraded services and stalled/halted deployment revisions.
+9. **Resource Pressure:** Evaluates host CPU utilization, memory pressure, and worker capacity exhaustion.
+
 
 
 

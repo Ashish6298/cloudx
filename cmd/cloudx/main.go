@@ -52,6 +52,7 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.AddCommand(newTaskCmd())
 	cmd.AddCommand(newMetricsCmd())
 	cmd.AddCommand(newOtelCmd())
+	cmd.AddCommand(newDiagnoseCmd())
 	cmd.AddCommand(newFailCmd())
 	return cmd
 }
