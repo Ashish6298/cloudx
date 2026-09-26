@@ -189,8 +189,8 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 54**: Cluster Recovery *([PHASE_54_COMPLETION_REPORT.md](./docs/reports/PHASE_54_COMPLETION_REPORT.md))*
 - [ ] **Milestone 15: Resource-Aware Orchestration** (Phases 55–58)
   - [ ] **Phase 55**: Resource Reservations
-  - [ ] **Phase 56**: Improved Scheduling Score
-  - [ ] **Phase 57**: Overcommit Control
+  - [x] **Phase 56**: Improved Scheduling Score *([PHASE_56_COMPLETION_REPORT.md](./docs/reports/PHASE_56_COMPLETION_REPORT.md))*
+  - [ ] **Phase 57**: Scheduling Explanation
   - [ ] **Phase 58**: Resource Exhaustion Behavior
 - [ ] **Milestones 16–88**: DNS resolution, load balancing, health monitoring, security, ingress, multi-node mesh, and release audit.
 
