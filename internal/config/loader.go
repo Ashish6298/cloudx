@@ -17,6 +17,7 @@ type CLIOptions struct {
 	NodeName          string
 	ControlPlaneAddr  string
 	WorkerAddr        string
+	BootstrapToken    string
 	RuntimeType       string
 	StoragePath       string
 	HeartbeatInterval time.Duration
@@ -113,6 +114,9 @@ func applyEnvOverrides(cfg *Config) {
 	if val := os.Getenv("CLOUDX_WORKER_ADDRESS"); val != "" {
 		cfg.Worker.Address = val
 	}
+	if val := os.Getenv("CLOUDX_BOOTSTRAP_TOKEN"); val != "" {
+		cfg.Worker.BootstrapToken = val
+	}
 	if val := os.Getenv("CLOUDX_RUNTIME_TYPE"); val != "" {
 		cfg.Runtime.Type = val
 	}
@@ -144,6 +148,9 @@ func applyCLIOverrides(cfg *Config, opts CLIOptions) {
 	}
 	if opts.WorkerAddr != "" {
 		cfg.Worker.Address = opts.WorkerAddr
+	}
+	if opts.BootstrapToken != "" {
+		cfg.Worker.BootstrapToken = opts.BootstrapToken
 	}
 	if opts.RuntimeType != "" {
 		cfg.Runtime.Type = opts.RuntimeType

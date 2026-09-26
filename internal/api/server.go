@@ -23,19 +23,21 @@ import (
 // Server is the gRPC API server for CloudX Control Plane.
 type Server struct {
 	v1.UnimplementedControlPlaneServiceServer
-	mu         sync.RWMutex
-	store      state.Store
-	logger     logging.Logger
-	grpcServer *grpc.Server
-	listener   net.Listener
-	address    string
+	mu             sync.RWMutex
+	store          state.Store
+	logger         logging.Logger
+	grpcServer     *grpc.Server
+	listener       net.Listener
+	address        string
+	bootstrapToken string
 }
 
 // ServerOptions configures the gRPC server.
 type ServerOptions struct {
-	Address string
-	Store   state.Store
-	Logger  logging.Logger
+	Address        string
+	Store          state.Store
+	Logger         logging.Logger
+	BootstrapToken string
 }
 
 // NewServer creates a new gRPC Server instance.
@@ -48,9 +50,10 @@ func NewServer(opts ServerOptions) (*Server, error) {
 	}
 
 	s := &Server{
-		store:   opts.Store,
-		logger:  opts.Logger,
-		address: opts.Address,
+		store:          opts.Store,
+		logger:         opts.Logger,
+		address:        opts.Address,
+		bootstrapToken: opts.BootstrapToken,
 	}
 
 	// Logging & Request ID Interceptor
@@ -133,6 +136,21 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 	}
 	if strings.TrimSpace(req.Address) == "" {
 		return nil, status.Error(codes.InvalidArgument, "worker address must not be empty")
+	}
+
+	// Bootstrap Token Verification if control plane has an active bootstrap token configured
+	if s.bootstrapToken != "" {
+		reqToken := ""
+		if req.Metadata != nil {
+			reqToken = req.Metadata["bootstrap_token"]
+		}
+		if reqToken == "" || reqToken != s.bootstrapToken {
+			s.logger.Warn("Worker registration rejected: invalid bootstrap token from %s (worker: %s)", req.Address, req.WorkerId)
+			return &v1.RegisterWorkerResponse{
+				Accepted: false,
+				Message:  "unauthorized: invalid or missing bootstrap token",
+			}, nil
+		}
 	}
 
 	// Validate node exists or create placeholder if node_id provided

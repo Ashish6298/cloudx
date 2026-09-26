@@ -31,7 +31,8 @@ type ControlPlaneConfig struct {
 
 // WorkerConfig specifies worker endpoint parameters.
 type WorkerConfig struct {
-	Address string `yaml:"address"`
+	Address        string `yaml:"address"`
+	BootstrapToken string `yaml:"bootstrap_token,omitempty"`
 }
 
 // RuntimeConfig specifies runtime driver properties.

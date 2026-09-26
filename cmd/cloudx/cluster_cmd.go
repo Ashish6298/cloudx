@@ -30,6 +30,34 @@ func newClusterCmd() *cobra.Command {
 	cmd.AddCommand(newClusterInitCmd())
 	cmd.AddCommand(newClusterStatusCmd())
 	cmd.AddCommand(newClusterNodesCmd())
+	cmd.AddCommand(newClusterTokenCmd())
+	return cmd
+}
+
+func newClusterTokenCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "token",
+		Short: "Display or generate the cluster bootstrap join token",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return err
+			}
+
+			bootstrapTokenFile := filepath.Join(cfg.Storage.Path, "bootstrap.token")
+			tokenBytes, err := os.ReadFile(bootstrapTokenFile)
+			token := strings.TrimSpace(string(tokenBytes))
+			if token == "" {
+				token = fmt.Sprintf("clx-btk-%x", time.Now().UnixNano())
+				_ = os.MkdirAll(cfg.Storage.Path, 0755)
+				_ = os.WriteFile(bootstrapTokenFile, []byte(token), 0600)
+			}
+
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "%s\n", token)
+			return nil
+		},
+	}
 	return cmd
 }
 
@@ -71,12 +99,24 @@ func newClusterInitCmd() *cobra.Command {
 			}
 			_ = store.Nodes().Create(ctx, node)
 
+			// 4. Generate & persist cluster bootstrap token
+			bootstrapTokenFile := filepath.Join(cfg.Storage.Path, "bootstrap.token")
+			tokenBytes, err := os.ReadFile(bootstrapTokenFile)
+			token := strings.TrimSpace(string(tokenBytes))
+			if token == "" {
+				token = fmt.Sprintf("clx-btk-%x", time.Now().UnixNano())
+				_ = os.WriteFile(bootstrapTokenFile, []byte(token), 0600)
+			}
+
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "CloudX cluster initialized successfully!\n")
 			fmt.Fprintf(out, "Cluster Storage:   %s\n", cfg.Storage.Path)
 			fmt.Fprintf(out, "Database Path:     %s\n", dbPath)
 			fmt.Fprintf(out, "Primary Node ID:   %s (%s)\n", cfg.Node.ID, cfg.Node.Name)
 			fmt.Fprintf(out, "Control Plane:     %s\n", cfg.ControlPlane.Address)
+			fmt.Fprintf(out, "Bootstrap Token:   %s\n", token)
+			fmt.Fprintf(out, "\nTo join a worker from another machine, run:\n")
+			fmt.Fprintf(out, "  cloudx worker join %s %s\n", cfg.ControlPlane.Address, token)
 			return nil
 		},
 	}

@@ -754,6 +754,38 @@ func TestServiceEndpointsCmd(t *testing.T) {
 	}
 }
 
+func TestCLI_ClusterInitAndToken(t *testing.T) {
+	tempDir := t.TempDir()
 
+	// 1. Test `cloudx cluster init`
+	initCmd := newRootCmd()
+	initBuf := new(bytes.Buffer)
+	initCmd.SetOut(initBuf)
+	initCmd.SetErr(initBuf)
+	initCmd.SetArgs([]string{"--storage-path", tempDir, "cluster", "init"})
 
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("cluster init failed: %v", err)
+	}
 
+	initOut := initBuf.String()
+	if !strings.Contains(initOut, "Bootstrap Token:") || !strings.Contains(initOut, "cloudx worker join") {
+		t.Fatalf("expected bootstrap token instructions in cluster init output, got:\n%s", initOut)
+	}
+
+	// 2. Test `cloudx cluster token`
+	tokenCmd := newRootCmd()
+	tokenBuf := new(bytes.Buffer)
+	tokenCmd.SetOut(tokenBuf)
+	tokenCmd.SetErr(tokenBuf)
+	tokenCmd.SetArgs([]string{"--storage-path", tempDir, "cluster", "token"})
+
+	if err := tokenCmd.Execute(); err != nil {
+		t.Fatalf("cluster token failed: %v", err)
+	}
+
+	tokenOut := strings.TrimSpace(tokenBuf.String())
+	if !strings.HasPrefix(tokenOut, "clx-btk-") {
+		t.Fatalf("expected bootstrap token starting with 'clx-btk-', got %q", tokenOut)
+	}
+}

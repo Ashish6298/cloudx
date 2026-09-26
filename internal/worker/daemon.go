@@ -83,6 +83,22 @@ func NewDaemon(opts Options) (*Daemon, error) {
 		workerID = id.NewWorkerID()
 	}
 
+	if opts.Config.Node.ID == "" || opts.Config.Node.ID == config.DefaultNodeID {
+		nodeID, err := idMgr.GetOrCreateNodeIdentity("")
+		if err == nil && nodeID != "" {
+			opts.Config.Node.ID = nodeID.String()
+		}
+	}
+
+	if opts.Config.Worker.BootstrapToken != "" {
+		_ = idMgr.SaveBootstrapToken(opts.Config.Worker.BootstrapToken)
+	} else {
+		savedToken := idMgr.GetBootstrapToken()
+		if savedToken != "" {
+			opts.Config.Worker.BootstrapToken = savedToken
+		}
+	}
+
 	d := &Daemon{
 		cfg:          opts.Config,
 		logger:       opts.Logger.WithWorker(workerID.String()),
@@ -193,6 +209,14 @@ func (d *Daemon) Start(ctx context.Context) error {
 
 	// 2. Register with Control Plane
 	d.logger.Info("Registering worker %s (host: %s, CPUs: %.0f) with control plane...", d.id, hostname, cpuCapacity)
+	meta := map[string]string{
+		"runtime":  d.cfg.Runtime.Type,
+		"platform": fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
+	}
+	if d.cfg.Worker.BootstrapToken != "" {
+		meta["bootstrap_token"] = d.cfg.Worker.BootstrapToken
+	}
+
 	regResp, err := d.cpClient.RegisterWorker(runCtx, &v1.RegisterWorkerRequest{
 		NodeId:              d.cfg.Node.ID,
 		WorkerId:            d.id.String(),
@@ -202,10 +226,7 @@ func (d *Daemon) Start(ctx context.Context) error {
 		CpuCapacity:         cpuCapacity,
 		MemoryCapacity:      memCapacity,
 		Version:             version.Get().Version,
-		Metadata: map[string]string{
-			"runtime":  d.cfg.Runtime.Type,
-			"platform": fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
-		},
+		Metadata:            meta,
 	})
 	if err != nil {
 		d.setStatus(StatusDegraded)
