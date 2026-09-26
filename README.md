@@ -178,7 +178,7 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 45**: Volume and Scheduling Constraints *([PHASE_45_COMPLETION_REPORT.md](./docs/reports/PHASE_45_COMPLETION_REPORT.md))*
 - [ ] **Milestone 13: Service Discovery and Networking** (Phases 46–49)
   - [x] **Phase 46**: Service Registry *([PHASE_46_COMPLETION_REPORT.md](./docs/reports/PHASE_46_COMPLETION_REPORT.md))*
-  - [ ] **Phase 47**: Service Discovery API
+  - [x] **Phase 47**: Service Discovery API *([PHASE_47_COMPLETION_REPORT.md](./docs/reports/PHASE_47_COMPLETION_REPORT.md))*
   - [ ] **Phase 48**: Port Mapping
   - [ ] **Phase 49**: Logical CloudX Network
 - [ ] **Milestones 14–88**: DNS resolution, load balancing, health monitoring, security, ingress, multi-node mesh, and release audit.

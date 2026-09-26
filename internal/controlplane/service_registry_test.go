@@ -130,4 +130,38 @@ func TestControlPlane_ServiceRegistryIntegration(t *testing.T) {
 	if len(epsAfterWorkerLost) != 0 {
 		t.Fatalf("expected 0 endpoints after worker lost, got %d", len(epsAfterWorkerLost))
 	}
+
+	// 5. Direct ResolveService & ResolveServiceOne API
+	w1.Status = "READY"
+	_ = store.Workers().Update(ctx, w1)
+	_ = cp.RegistryManager.OnWorkerStatusChange(ctx, w1.ID, "READY")
+
+	resolved, err := cp.ResolveService(ctx, "web")
+	if err != nil {
+		t.Fatalf("cp.ResolveService('web') failed: %v", err)
+	}
+	if len(resolved) != 1 {
+		t.Fatalf("expected 1 endpoint from ResolveService('web'), got %d", len(resolved))
+	}
+	if resolved[0].Address != "10.0.0.10:8080" {
+		t.Fatalf("expected resolved address 10.0.0.10:8080, got %s", resolved[0].Address)
+	}
+
+	one, err := cp.ResolveServiceOne(ctx, "web")
+	if err != nil {
+		t.Fatalf("cp.ResolveServiceOne('web') failed: %v", err)
+	}
+	if one.Address != "10.0.0.10:8080" {
+		t.Fatalf("expected ResolveServiceOne address 10.0.0.10:8080, got %s", one.Address)
+	}
+
+	// 6. cp.ServiceResolver() discovery interface
+	resolver := cp.ServiceResolver()
+	if resolver == nil {
+		t.Fatalf("expected non-nil ServiceResolver from control plane")
+	}
+	fromResolver, err := resolver.ResolveService(ctx, "web")
+	if err != nil || len(fromResolver) != 1 {
+		t.Fatalf("resolver.ResolveService('web') failed: %v, len=%d", err, len(fromResolver))
+	}
 }

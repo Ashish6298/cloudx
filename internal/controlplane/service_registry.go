@@ -161,6 +161,11 @@ func (rm *RegistryManager) OnWorkerStatusChange(ctx context.Context, workerID id
 
 // GetServiceEndpoints returns all healthy endpoints for a service name or ID.
 func (cp *ControlPlane) GetServiceEndpoints(ctx context.Context, nameOrID string) ([]*registry.Endpoint, error) {
+	return cp.ResolveService(ctx, nameOrID)
+}
+
+// ResolveService provides the core discovery interface: ResolveService("api") -> healthy endpoints.
+func (cp *ControlPlane) ResolveService(ctx context.Context, serviceNameOrID string) ([]*registry.Endpoint, error) {
 	if cp.RegistryManager == nil {
 		return nil, fmt.Errorf("registry manager is not initialized")
 	}
@@ -169,19 +174,19 @@ func (cp *ControlPlane) GetServiceEndpoints(ctx context.Context, nameOrID string
 	_ = cp.RegistryManager.Refresh(ctx)
 
 	// First try lookup by name
-	eps := cp.RegistryManager.ServiceRegistry().Lookup(nameOrID)
+	eps := cp.RegistryManager.ServiceRegistry().Lookup(serviceNameOrID)
 	if len(eps) > 0 {
 		return eps, nil
 	}
 
 	// Then try lookup by ID
-	eps = cp.RegistryManager.ServiceRegistry().LookupByID(id.ID(nameOrID))
+	eps = cp.RegistryManager.ServiceRegistry().LookupByID(id.ID(serviceNameOrID))
 	if len(eps) > 0 {
 		return eps, nil
 	}
 
-	// Check if service exists
-	inspectRes, err := cp.InspectService(ctx, nameOrID)
+	// Check if service exists in cluster
+	inspectRes, err := cp.InspectService(ctx, serviceNameOrID)
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +194,26 @@ func (cp *ControlPlane) GetServiceEndpoints(ctx context.Context, nameOrID string
 	// Service exists but has no active healthy endpoints
 	eps = cp.RegistryManager.ServiceRegistry().Lookup(inspectRes.Service.Name)
 	return eps, nil
+}
+
+// ResolveServiceOne returns a single healthy endpoint for a service.
+func (cp *ControlPlane) ResolveServiceOne(ctx context.Context, serviceNameOrID string) (*registry.Endpoint, error) {
+	eps, err := cp.ResolveService(ctx, serviceNameOrID)
+	if err != nil {
+		return nil, err
+	}
+	if len(eps) == 0 {
+		return nil, fmt.Errorf("no healthy endpoints available for service '%s'", serviceNameOrID)
+	}
+	return eps[0], nil
+}
+
+// ServiceResolver returns a ServiceResolver instance backed by the ControlPlane.
+func (cp *ControlPlane) ServiceResolver() registry.ServiceResolver {
+	if cp.RegistryManager == nil {
+		return nil
+	}
+	return registry.NewStoreResolver(cp.RegistryManager.ServiceRegistry(), cp.StateManager.Store())
 }
 
 // ListAllEndpoints returns a map of service names to healthy endpoints.
