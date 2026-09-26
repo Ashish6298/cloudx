@@ -193,15 +193,19 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 57**: Scheduling Explanation *([PHASE_57_COMPLETION_REPORT.md](./docs/reports/PHASE_57_COMPLETION_REPORT.md))*
 - [x] **Milestone 16: Observability** (Phases 58–61 — in progress)
   - [x] **Phase 58**: Metrics Model *([PHASE_58_COMPLETION_REPORT.md](./docs/reports/PHASE_58_COMPLETION_REPORT.md))*
-  - [ ] **Phase 59**: OpenTelemetry-Compatible Architecture
+  - [x] **Phase 59**: OpenTelemetry-Compatible Architecture *([PHASE_59_COMPLETION_REPORT.md](./docs/reports/PHASE_59_COMPLETION_REPORT.md))*
   - [ ] **Phase 60**: Diagnostics
 - [ ] **Milestones 17–88**: DNS resolution, load balancing, security, ingress, multi-node mesh, and release audit.
 
 ---
 
-## Observability — `cloudx metrics show`
+## Observability & Telemetry
 
-Phase 58 introduces a lightweight, in-process metrics model with no external dependencies:
+CloudX provides rich in-process metrics and OpenTelemetry-compatible tracing with **zero required external infrastructure**.
+
+### 1. In-Process Metrics (`cloudx metrics show`)
+
+Phase 58 introduces a zero-dependency in-process metrics model:
 
 ```bash
 # Show all cluster metrics
@@ -217,14 +221,38 @@ Phase 58 introduces a lightweight, in-process metrics model with no external dep
 ./bin/cloudx metrics show --json
 ```
 
-### Metric Domains
-
 | Domain | Metrics |
 |--------|--------|
 | **Control Plane** | reconciliation cycles/failures/duration, scheduling latency/decisions/failures, RPC failures, state CRUD counters |
 | **Worker** | CPU usage %, memory used/avail/total bytes, active task count, process restarts, heartbeat counters |
 | **Service** | replicas desired, replicas running, health failures, restart count |
 | **Job** | execution duration histogram, succeeded/failed/cancelled/retry counters |
+
+---
+
+### 2. OpenTelemetry Tracing & Export (`cloudx otel`)
+
+Phase 59 introduces OpenTelemetry-compatible tracing and metric bridging:
+
+```bash
+# Inspect OpenTelemetry provider status and configuration
+./bin/cloudx otel status
+./bin/cloudx otel status --json
+
+# Inspect in-memory trace spans recorded by CloudX
+./bin/cloudx otel spans
+./bin/cloudx otel spans --limit 10
+./bin/cloudx otel spans --json
+
+# Inspect bridged OpenTelemetry ResourceMetrics
+./bin/cloudx otel metrics
+./bin/cloudx otel metrics --json
+```
+
+#### Standalone vs. Hybrid Mode
+- **Standalone Mode (Default):** Spans and metrics are captured in-memory using an efficient FIFO ring buffer. No external server (Collector/Jaeger/Tempo) is required.
+- **Hybrid / Export Mode:** Set `CLOUDX_OTEL_ENDPOINT=http://localhost:4318` (or configure `telemetry.otlp_endpoint` in `cloudx.yaml`) to automatically stream OTLP HTTP/JSON trace spans to any OpenTelemetry collector while preserving local standalone functionality.
+
 
 
 

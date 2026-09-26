@@ -10,6 +10,7 @@ import (
 
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
+	"github.com/cloudx-org/cloudx/internal/otel"
 	"github.com/cloudx-org/cloudx/internal/scheduler"
 	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state"
@@ -128,24 +129,39 @@ type ReconciliationSummary struct {
 
 // ReconcileAll runs an idempotent convergence pass over all services in the cluster.
 func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, error) {
+	tracer := otel.GetTracer("cloudx.controlplane.reconciler")
+	ctx, span := tracer.Start(ctx, "reconcile.pass",
+		otel.WithSpanKind(otel.SpanKindInternal),
+	)
+	defer span.End()
+
 	r.mu.RLock()
 	store := r.store
 	coordinator := r.coordinator
 	r.mu.RUnlock()
 
 	if store == nil {
-		return nil, fmt.Errorf("store is nil")
+		err := fmt.Errorf("store is nil")
+		span.RecordError(err)
+		return nil, err
 	}
 
 	services, err := store.Services().List(ctx)
 	if err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
 
 	workers, err := store.Workers().List(ctx)
 	if err != nil {
+		span.RecordError(err)
 		return nil, fmt.Errorf("failed to list workers: %w", err)
 	}
+
+	span.SetAttributes(
+		otel.IntAttr("reconciler.services_count", int64(len(services))),
+		otel.IntAttr("reconciler.workers_count", int64(len(workers))),
+	)
 
 	workerStatusMap := make(map[id.ID]string)
 	for _, w := range workers {
@@ -543,6 +559,13 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 			}
 		}
 	}
+
+	span.SetAttributes(
+		otel.IntAttr("reconciler.created_tasks", int64(summary.CreatedTasks)),
+		otel.IntAttr("reconciler.removed_tasks", int64(summary.RemovedTasks)),
+		otel.IntAttr("reconciler.orphans_recovered", int64(summary.OrphanedRecovered)),
+	)
+	span.SetStatus(otel.StatusOK, "reconciliation pass complete")
 
 	return summary, nil
 }

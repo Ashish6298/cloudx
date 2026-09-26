@@ -16,6 +16,17 @@ type Config struct {
 	Network      NetworkConfig      `yaml:"network"`
 	Health       HealthConfig       `yaml:"health"`
 	Logging      LoggingConfig      `yaml:"logging"`
+	Telemetry    TelemetryConfig    `yaml:"telemetry"`
+}
+
+// TelemetryConfig configures OpenTelemetry-compatible tracing and metrics export.
+// CloudX operates completely standalone with zero external dependencies by default;
+// OTLP export is optionally activated when OTLPEndpoint is set.
+type TelemetryConfig struct {
+	ServiceName    string `yaml:"service_name,omitempty"`
+	OTLPEndpoint   string `yaml:"otlp_endpoint,omitempty"`   // e.g. "http://localhost:4318"
+	BufferCapacity int    `yaml:"buffer_capacity,omitempty"` // in-memory span buffer (default 512)
+	Disabled       bool   `yaml:"disabled,omitempty"`        // disables tracing
 }
 
 // NodeConfig specifies node identification and metadata.
