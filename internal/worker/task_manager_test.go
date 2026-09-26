@@ -332,8 +332,15 @@ func TestTaskManager_RestartPolicy_Never(t *testing.T) {
 		t.Fatalf("assign failed: %v", err)
 	}
 
-	time.Sleep(300 * time.Millisecond)
-	st, err := tm.GetTask(taskID)
+	// Poll until task reaches FAILED
+	var st *TaskStatusSnapshot
+	for i := 0; i < 40; i++ {
+		time.Sleep(100 * time.Millisecond)
+		st, err = tm.GetTask(taskID)
+		if err == nil && st.State == models.TaskStateFailed {
+			break
+		}
+	}
 	if err != nil {
 		t.Fatalf("failed to get task: %v", err)
 	}

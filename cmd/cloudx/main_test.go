@@ -664,5 +664,96 @@ func TestClusterStatusOverviewCLI(t *testing.T) {
 	}
 }
 
+func TestServiceEndpointsCmd(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "cloudx.db")
+	ctx := context.Background()
+
+	store, err := sqlite.Open(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("failed to open sqlite store: %v", err)
+	}
+
+	now := time.Now().UTC()
+	nodeID := id.NewNodeID()
+	_ = store.Nodes().Create(ctx, &models.Node{
+		ID:        nodeID,
+		Name:      "test-node",
+		Address:   "10.0.0.5",
+		Status:    "READY",
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	workerID := id.NewWorkerID()
+	_ = store.Workers().Create(ctx, &models.Worker{
+		ID:        workerID,
+		NodeID:    nodeID,
+		Address:   "10.0.0.5:7001",
+		Status:    "READY",
+		Heartbeat: now,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	svcID := id.NewServiceID()
+	specJSON := `{"name":"api","command":"server","ports":[{"host_port":8000,"service_port":8000,"protocol":"tcp"}]}`
+	_ = store.Services().Create(ctx, &models.Service{
+		ID:        svcID,
+		Name:      "api",
+		Replicas:  1,
+		Runtime:   "native",
+		Command:   "server",
+		Status:    "RUNNING",
+		SpecJSON:  specJSON,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+
+	_ = store.Tasks().Create(ctx, &models.Task{
+		ID:        id.NewTaskID(),
+		ServiceID: svcID,
+		WorkerID:  workerID,
+		State:     string(models.TaskStateRunning),
+		PID:       5050,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	_ = store.Close()
+
+	// 1. Test `cloudx service endpoints api`
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"--storage-path", tempDir, "service", "endpoints", "api"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("cloudx service endpoints api command failed: %v", err)
+	}
+
+	outStr := buf.String()
+	if !strings.Contains(outStr, "10.0.0.5:8000") || !strings.Contains(outStr, "api") {
+		t.Fatalf("expected endpoint '10.0.0.5:8000' in output, got:\n%s", outStr)
+	}
+
+	// 2. Test `cloudx service endpoints --json`
+	jsonCmd := newRootCmd()
+	jsonBuf := new(bytes.Buffer)
+	jsonCmd.SetOut(jsonBuf)
+	jsonCmd.SetErr(jsonBuf)
+	jsonCmd.SetArgs([]string{"--storage-path", tempDir, "service", "endpoints", "--json"})
+
+	if err := jsonCmd.Execute(); err != nil {
+		t.Fatalf("cloudx service endpoints --json command failed: %v", err)
+	}
+
+	jsonOut := jsonBuf.String()
+	if !strings.Contains(jsonOut, "10.0.0.5:8000") {
+		t.Fatalf("expected JSON output to contain endpoint address, got:\n%s", jsonOut)
+	}
+}
+
+
 
 
