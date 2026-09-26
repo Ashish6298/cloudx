@@ -26,12 +26,15 @@ type NodeConfig struct {
 
 // ControlPlaneConfig specifies control-plane connection properties.
 type ControlPlaneConfig struct {
-	Address string `yaml:"address"`
+	Address        string `yaml:"address"`
+	ClusterID      string `yaml:"cluster_id,omitempty"`
+	BootstrapToken string `yaml:"bootstrap_token,omitempty"`
 }
 
 // WorkerConfig specifies worker endpoint parameters.
 type WorkerConfig struct {
 	Address        string `yaml:"address"`
+	ClusterID      string `yaml:"cluster_id,omitempty"`
 	BootstrapToken string `yaml:"bootstrap_token,omitempty"`
 }
 

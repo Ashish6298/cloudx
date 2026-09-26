@@ -216,6 +216,9 @@ func (d *Daemon) Start(ctx context.Context) error {
 	if d.cfg.Worker.BootstrapToken != "" {
 		meta["bootstrap_token"] = d.cfg.Worker.BootstrapToken
 	}
+	if d.cfg.Worker.ClusterID != "" {
+		meta["cluster_id"] = d.cfg.Worker.ClusterID
+	}
 
 	regResp, err := d.cpClient.RegisterWorker(runCtx, &v1.RegisterWorkerRequest{
 		NodeId:              d.cfg.Node.ID,

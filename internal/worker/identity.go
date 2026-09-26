@@ -28,6 +28,9 @@ func NewIdentityManager(storagePath string) *IdentityManager {
 // GetOrCreateIdentity returns existing worker ID from storage or generates a new one.
 func (m *IdentityManager) GetOrCreateIdentity(explicitID string) (id.ID, error) {
 	if explicitID != "" {
+		_ = os.MkdirAll(m.storagePath, 0755)
+		idFilePath := filepath.Join(m.storagePath, "worker.id")
+		_ = os.WriteFile(idFilePath, []byte(strings.TrimSpace(explicitID)), 0600)
 		return id.ID(explicitID), nil
 	}
 
