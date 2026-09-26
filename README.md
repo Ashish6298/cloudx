@@ -181,13 +181,18 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 47**: Service Discovery API *([PHASE_47_COMPLETION_REPORT.md](./docs/reports/PHASE_47_COMPLETION_REPORT.md))*
   - [x] **Phase 48**: Port Mapping *([PHASE_48_COMPLETION_REPORT.md](./docs/reports/PHASE_48_COMPLETION_REPORT.md))*
   - [x] **Phase 49**: Logical CloudX Network *([PHASE_49_COMPLETION_REPORT.md](./docs/reports/PHASE_49_COMPLETION_REPORT.md))*
-- [x] **Milestone 14: Multi-Node Private Cloud** (Phases 50–54)
+- [x] **Milestone 14: Multi-Node Private Cloud** (Phases 50–54 ✅ complete)
   - [x] **Phase 50**: Remote Worker Join *([PHASE_50_COMPLETION_REPORT.md](./docs/reports/PHASE_50_COMPLETION_REPORT.md))*
   - [x] **Phase 51**: Cluster Token and Authentication *([PHASE_51_COMPLETION_REPORT.md](./docs/reports/PHASE_51_COMPLETION_REPORT.md))*
   - [x] **Phase 52**: Multi-Node Scheduling *([PHASE_52_COMPLETION_REPORT.md](./docs/reports/PHASE_52_COMPLETION_REPORT.md))*
   - [x] **Phase 53**: Node Drain *([PHASE_53_COMPLETION_REPORT.md](./docs/reports/PHASE_53_COMPLETION_REPORT.md))*
-  - [ ] **Phase 54**: Cluster Recovery
-- [ ] **Milestones 15–88**: DNS resolution, load balancing, health monitoring, security, ingress, multi-node mesh, and release audit.
+  - [x] **Phase 54**: Cluster Recovery *([PHASE_54_COMPLETION_REPORT.md](./docs/reports/PHASE_54_COMPLETION_REPORT.md))*
+- [ ] **Milestone 15: Resource-Aware Orchestration** (Phases 55–58)
+  - [ ] **Phase 55**: Resource Reservations
+  - [ ] **Phase 56**: Improved Scheduling Score
+  - [ ] **Phase 57**: Overcommit Control
+  - [ ] **Phase 58**: Resource Exhaustion Behavior
+- [ ] **Milestones 16–88**: DNS resolution, load balancing, health monitoring, security, ingress, multi-node mesh, and release audit.
 
 
 
