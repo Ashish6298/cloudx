@@ -482,6 +482,18 @@ func (r *networkRepo) Get(ctx context.Context, idVal id.ID) (*models.Network, er
 	return &n, nil
 }
 
+func (r *networkRepo) GetByName(ctx context.Context, name string) (*models.Network, error) {
+	query := `SELECT id, name, subnet, created_at, updated_at FROM networks WHERE name = ? COLLATE NOCASE`
+	row := r.exec.QueryRowContext(ctx, query, name)
+	var n models.Network
+	var idStr string
+	if err := row.Scan(&idStr, &n.Name, &n.Subnet, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		return nil, err
+	}
+	n.ID = id.ID(idStr)
+	return &n, nil
+}
+
 func (r *networkRepo) List(ctx context.Context) ([]*models.Network, error) {
 	query := `SELECT id, name, subnet, created_at, updated_at FROM networks ORDER BY created_at ASC`
 	rows, err := r.exec.QueryContext(ctx, query)

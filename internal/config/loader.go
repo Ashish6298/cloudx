@@ -15,8 +15,10 @@ type CLIOptions struct {
 	ConfigPath        string
 	NodeID            string
 	NodeName          string
+	ClusterID         string
 	ControlPlaneAddr  string
 	WorkerAddr        string
+	BootstrapToken    string
 	RuntimeType       string
 	StoragePath       string
 	HeartbeatInterval time.Duration
@@ -107,11 +109,19 @@ func applyEnvOverrides(cfg *Config) {
 	if val := os.Getenv("CLOUDX_NODE_NAME"); val != "" {
 		cfg.Node.Name = val
 	}
+	if val := os.Getenv("CLOUDX_CLUSTER_ID"); val != "" {
+		cfg.ControlPlane.ClusterID = val
+		cfg.Worker.ClusterID = val
+	}
 	if val := os.Getenv("CLOUDX_CONTROL_PLANE_ADDRESS"); val != "" {
 		cfg.ControlPlane.Address = val
 	}
 	if val := os.Getenv("CLOUDX_WORKER_ADDRESS"); val != "" {
 		cfg.Worker.Address = val
+	}
+	if val := os.Getenv("CLOUDX_BOOTSTRAP_TOKEN"); val != "" {
+		cfg.ControlPlane.BootstrapToken = val
+		cfg.Worker.BootstrapToken = val
 	}
 	if val := os.Getenv("CLOUDX_RUNTIME_TYPE"); val != "" {
 		cfg.Runtime.Type = val
@@ -139,11 +149,19 @@ func applyCLIOverrides(cfg *Config, opts CLIOptions) {
 	if opts.NodeName != "" {
 		cfg.Node.Name = opts.NodeName
 	}
+	if opts.ClusterID != "" {
+		cfg.ControlPlane.ClusterID = opts.ClusterID
+		cfg.Worker.ClusterID = opts.ClusterID
+	}
 	if opts.ControlPlaneAddr != "" {
 		cfg.ControlPlane.Address = opts.ControlPlaneAddr
 	}
 	if opts.WorkerAddr != "" {
 		cfg.Worker.Address = opts.WorkerAddr
+	}
+	if opts.BootstrapToken != "" {
+		cfg.ControlPlane.BootstrapToken = opts.BootstrapToken
+		cfg.Worker.BootstrapToken = opts.BootstrapToken
 	}
 	if opts.RuntimeType != "" {
 		cfg.Runtime.Type = opts.RuntimeType

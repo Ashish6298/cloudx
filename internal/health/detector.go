@@ -17,6 +17,8 @@ type WorkerHealthStatus string
 
 const (
 	StatusReady      WorkerHealthStatus = "READY"
+	StatusDraining   WorkerHealthStatus = "DRAINING"
+	StatusEmpty      WorkerHealthStatus = "EMPTY"
 	StatusSuspected  WorkerHealthStatus = "SUSPECTED"
 	StatusUnhealthy  WorkerHealthStatus = "UNHEALTHY"
 	StatusLost       WorkerHealthStatus = "LOST"
@@ -141,7 +143,12 @@ func (fd *FailureDetector) EvaluateWorkers(ctx context.Context, now time.Time) {
 		case elapsed >= fd.cfg.SuspectedTimeout:
 			targetStatus = StatusSuspected
 		default:
-			targetStatus = StatusReady
+			// If worker is DRAINING or EMPTY and still heartbeating healthy, preserve that status
+			if w.Status == string(StatusDraining) || w.Status == string(StatusEmpty) {
+				targetStatus = WorkerHealthStatus(w.Status)
+			} else {
+				targetStatus = StatusReady
+			}
 		}
 
 		if w.Status != string(targetStatus) {

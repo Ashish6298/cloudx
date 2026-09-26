@@ -139,6 +139,7 @@ type ControlPlane struct {
 	// Major Subsystems
 	StateManager      *StateManager
 	Registry          *Registry
+	RegistryManager   *RegistryManager
 	Scheduler         *Scheduler
 	DeploymentManager *DeploymentManager
 	HealthManager     *HealthManager
@@ -157,6 +158,7 @@ func New(opts Options) (*ControlPlane, error) {
 
 	stateMgr := NewStateManager(opts.Store)
 	registry := NewRegistry()
+	regMgr := NewRegistryManager(opts.Store)
 	scheduler := NewScheduler()
 	depMgr := NewDeploymentManager()
 	healthMgr := NewHealthManager(opts.Store, opts.Logger, opts.Config.Health.HeartbeatInterval)
@@ -166,6 +168,7 @@ func New(opts Options) (*ControlPlane, error) {
 	coreComponents := []Component{
 		stateMgr,
 		registry,
+		regMgr,
 		scheduler,
 		depMgr,
 		healthMgr,
@@ -184,6 +187,7 @@ func New(opts Options) (*ControlPlane, error) {
 		components:        coreComponents,
 		StateManager:      stateMgr,
 		Registry:          registry,
+		RegistryManager:   regMgr,
 		Scheduler:         scheduler,
 		DeploymentManager: depMgr,
 		HealthManager:     healthMgr,

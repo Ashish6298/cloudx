@@ -77,18 +77,30 @@ func newWorkerStartCmd() *cobra.Command {
 }
 
 func newWorkerJoinCmd() *cobra.Command {
-	var controlPlaneAddr string
+	var (
+		controlPlaneAddr string
+		bootstrapToken   string
+	)
 
 	cmd := &cobra.Command{
-		Use:   "join [CONTROL_PLANE_ADDRESS]",
-		Short: "Join an existing CloudX control plane cluster",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "join <ENDPOINT> [TOKEN]",
+		Short: "Join a remote CloudX control plane cluster",
+		Long: `Connects a remote worker machine to a CloudX cluster control plane using an endpoint and bootstrap token.
+Example:
+  cloudx worker join 192.168.1.50:7000 clx-btk-secret`,
+		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				controlPlaneAddr = args[0]
 			}
+			if len(args) > 1 {
+				bootstrapToken = args[1]
+			}
 			if controlPlaneAddr != "" {
 				cliOpts.ControlPlaneAddr = controlPlaneAddr
+			}
+			if bootstrapToken != "" {
+				cliOpts.BootstrapToken = bootstrapToken
 			}
 
 			cfg, err := config.Load(cliOpts)
@@ -115,12 +127,13 @@ func newWorkerJoinCmd() *cobra.Command {
 				return fmt.Errorf("failed to join cluster: %w", err)
 			}
 
-			fmt.Fprintf(out, "Successfully joined cluster %s! Worker ID: %s (Status: READY)\n", daemon.ClusterID(), daemon.ID())
+			fmt.Fprintf(out, "Successfully joined cluster %s! Node ID: %s, Worker ID: %s (Status: READY)\n", daemon.ClusterID(), cfg.Node.ID, daemon.ID())
 			return daemon.Stop(context.Background())
 		},
 	}
 
 	cmd.Flags().StringVar(&controlPlaneAddr, "control-plane", "", "Target control plane address (host:port)")
+	cmd.Flags().StringVar(&bootstrapToken, "token", "", "Bootstrap token for cluster authentication")
 	return cmd
 }
 

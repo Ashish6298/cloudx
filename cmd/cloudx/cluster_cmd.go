@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/config"
 	"github.com/cloudx-org/cloudx/internal/state/models"
@@ -30,6 +31,76 @@ func newClusterCmd() *cobra.Command {
 	cmd.AddCommand(newClusterInitCmd())
 	cmd.AddCommand(newClusterStatusCmd())
 	cmd.AddCommand(newClusterNodesCmd())
+	cmd.AddCommand(newClusterTokenCmd())
+	return cmd
+}
+
+func newClusterTokenCmd() *cobra.Command {
+	var ttlStr string
+
+	cmd := &cobra.Command{
+		Use:   "token",
+		Short: "Manage and display cluster bootstrap join tokens",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return err
+			}
+
+			bootstrapTokenFile := filepath.Join(cfg.Storage.Path, "bootstrap.token")
+			tokenBytes, err := os.ReadFile(bootstrapTokenFile)
+			token := strings.TrimSpace(string(tokenBytes))
+			if token == "" {
+				token = fmt.Sprintf("clx-btk-%x", time.Now().UnixNano())
+				_ = os.MkdirAll(cfg.Storage.Path, 0755)
+				_ = os.WriteFile(bootstrapTokenFile, []byte(token), 0600)
+			}
+
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "%s\n", token)
+			return nil
+		},
+	}
+
+	createCmd := &cobra.Command{
+		Use:   "create",
+		Short: "Generate a new cluster bootstrap token with optional TTL (e.g. 1h, 24h)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return err
+			}
+
+			var ttl time.Duration
+			if ttlStr != "" {
+				parsedTTL, err := time.ParseDuration(ttlStr)
+				if err != nil {
+					return fmt.Errorf("invalid TTL duration: %w", err)
+				}
+				ttl = parsedTTL
+			}
+
+			tv := auth.NewTokenValidator(cfg.ControlPlane.ClusterID)
+			tokenObj, err := tv.GenerateToken(ttl)
+			if err != nil {
+				return fmt.Errorf("failed to generate token: %w", err)
+			}
+
+			bootstrapTokenFile := filepath.Join(cfg.Storage.Path, "bootstrap.token")
+			_ = os.MkdirAll(cfg.Storage.Path, 0755)
+			_ = os.WriteFile(bootstrapTokenFile, []byte(tokenObj.Token), 0600)
+
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "Generated new cluster bootstrap token:\n%s\n", tokenObj.Token)
+			if !tokenObj.ExpiresAt.IsZero() {
+				fmt.Fprintf(out, "Expires At: %s (TTL: %s)\n", tokenObj.ExpiresAt.Format(time.RFC3339), ttlStr)
+			}
+			return nil
+		},
+	}
+	createCmd.Flags().StringVar(&ttlStr, "ttl", "", "Optional expiration duration (e.g. 1h, 24h, 30m)")
+
+	cmd.AddCommand(createCmd)
 	return cmd
 }
 
@@ -71,12 +142,24 @@ func newClusterInitCmd() *cobra.Command {
 			}
 			_ = store.Nodes().Create(ctx, node)
 
+			// 4. Generate & persist cluster bootstrap token
+			bootstrapTokenFile := filepath.Join(cfg.Storage.Path, "bootstrap.token")
+			tokenBytes, err := os.ReadFile(bootstrapTokenFile)
+			token := strings.TrimSpace(string(tokenBytes))
+			if token == "" {
+				token = fmt.Sprintf("clx-btk-%x", time.Now().UnixNano())
+				_ = os.WriteFile(bootstrapTokenFile, []byte(token), 0600)
+			}
+
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "CloudX cluster initialized successfully!\n")
 			fmt.Fprintf(out, "Cluster Storage:   %s\n", cfg.Storage.Path)
 			fmt.Fprintf(out, "Database Path:     %s\n", dbPath)
 			fmt.Fprintf(out, "Primary Node ID:   %s (%s)\n", cfg.Node.ID, cfg.Node.Name)
 			fmt.Fprintf(out, "Control Plane:     %s\n", cfg.ControlPlane.Address)
+			fmt.Fprintf(out, "Bootstrap Token:   %s\n", token)
+			fmt.Fprintf(out, "\nTo join a worker from another machine, run:\n")
+			fmt.Fprintf(out, "  cloudx worker join %s %s\n", cfg.ControlPlane.Address, token)
 			return nil
 		},
 	}

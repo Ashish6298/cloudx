@@ -16,6 +16,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/config"
 	"github.com/cloudx-org/cloudx/internal/controlplane"
 	"github.com/cloudx-org/cloudx/internal/logs"
+	"github.com/cloudx-org/cloudx/internal/registry"
 	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state/sqlite"
 	"github.com/spf13/cobra"
@@ -160,12 +161,13 @@ func newServiceCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "service",
 		Short: "Manage and inspect CloudX services",
-		Long:  `List running services, inspect deployment details, configurations, replicas, and stream logs.`,
+		Long:  `List running services, inspect deployment details, configurations, replicas, endpoints, and stream logs.`,
 	}
 
 	cmd.AddCommand(newServiceListCmd())
 	cmd.AddCommand(newServiceInspectCmd())
 	cmd.AddCommand(newServiceScaleCmd())
+	cmd.AddCommand(newServiceEndpointsCmd())
 	cmd.AddCommand(newServiceLogsCmd())
 	return cmd
 }
@@ -501,6 +503,184 @@ Examples:
 	cmd.Flags().StringVar(&sinceStr, "since", "", "Filter logs after duration (e.g. 1h, 15m) or RFC3339 timestamp")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output log entries as JSON lines")
 
+	return cmd
+}
+
+func newServiceEndpointsCmd() *cobra.Command {
+	var jsonOutput bool
+	var networkFilter string
+
+	cmd := &cobra.Command{
+		Use:   "endpoints [service-name-or-id]",
+		Short: "List active healthy endpoints for services",
+		Long: `Query the service discovery registry for reachable, healthy task endpoints.
+If a service name or ID is provided, displays endpoints for that service.
+If omitted, lists endpoints across all services in the cluster.
+Filter by logical network using the --network flag.
+
+Examples:
+  cloudx service endpoints api
+  cloudx service endpoints
+  cloudx service endpoints --network backend
+  cloudx service endpoints api --network backend
+  cloudx service endpoints --json`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to connect to cluster store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logging.NewDefaultLogger(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			if len(args) > 0 {
+				target := args[0]
+				var endpoints []*registry.Endpoint
+				if networkFilter != "" {
+					endpoints, err = cp.ResolveServiceInNetwork(ctx, target, networkFilter)
+				} else {
+					endpoints, err = cp.GetServiceEndpoints(ctx, target)
+				}
+				if err != nil {
+					return fmt.Errorf("failed to get endpoints for %s: %w", target, err)
+				}
+
+				if jsonOutput {
+					enc := json.NewEncoder(out)
+					enc.SetIndent("", "  ")
+					return enc.Encode(endpoints)
+				}
+
+				if len(endpoints) == 0 {
+					if networkFilter != "" {
+						fmt.Fprintf(out, "No active healthy endpoints found for service '%s' in network '%s'.\n", target, networkFilter)
+					} else {
+						fmt.Fprintf(out, "No active healthy endpoints found for service '%s'.\n", target)
+					}
+					return nil
+				}
+
+				w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+				fmt.Fprintln(w, "SERVICE\tTASK ID\tWORKER ID\tENDPOINT\tPROTOCOL\tHEALTHY")
+				for _, ep := range endpoints {
+					healthyStr := "true"
+					if !ep.Healthy {
+						healthyStr = "false"
+					}
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+						ep.ServiceName,
+						ep.TaskID,
+						ep.WorkerID,
+						ep.Address,
+						ep.Protocol,
+						healthyStr,
+					)
+				}
+				return w.Flush()
+			}
+
+			// If network filter is provided with no service argument, list all endpoints in network
+			if networkFilter != "" {
+				endpoints, err := cp.ResolveNetwork(ctx, networkFilter)
+				if err != nil {
+					return fmt.Errorf("failed to list endpoints in network %s: %w", networkFilter, err)
+				}
+
+				if jsonOutput {
+					enc := json.NewEncoder(out)
+					enc.SetIndent("", "  ")
+					return enc.Encode(endpoints)
+				}
+
+				if len(endpoints) == 0 {
+					fmt.Fprintf(out, "No active service endpoints found in network '%s'.\n", networkFilter)
+					return nil
+				}
+
+				w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+				fmt.Fprintln(w, "SERVICE\tTASK ID\tWORKER ID\tENDPOINT\tPROTOCOL\tHEALTHY")
+				for _, ep := range endpoints {
+					healthyStr := "true"
+					if !ep.Healthy {
+						healthyStr = "false"
+					}
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+						ep.ServiceName,
+						ep.TaskID,
+						ep.WorkerID,
+						ep.Address,
+						ep.Protocol,
+						healthyStr,
+					)
+				}
+				return w.Flush()
+			}
+
+			// List all endpoints
+			allEndpoints, err := cp.ListAllEndpoints(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to list all endpoints: %w", err)
+			}
+
+			if jsonOutput {
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(allEndpoints)
+			}
+
+			totalCount := 0
+			for _, eps := range allEndpoints {
+				totalCount += len(eps)
+			}
+
+			if totalCount == 0 {
+				fmt.Fprintln(out, "No active service endpoints found in the cluster registry.")
+				return nil
+			}
+
+			w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+			fmt.Fprintln(w, "SERVICE\tTASK ID\tWORKER ID\tENDPOINT\tPROTOCOL\tHEALTHY")
+			for _, eps := range allEndpoints {
+				for _, ep := range eps {
+					healthyStr := "true"
+					if !ep.Healthy {
+						healthyStr = "false"
+					}
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+						ep.ServiceName,
+						ep.TaskID,
+						ep.WorkerID,
+						ep.Address,
+						ep.Protocol,
+						healthyStr,
+					)
+				}
+			}
+			return w.Flush()
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output endpoints as JSON")
+	cmd.Flags().StringVarP(&networkFilter, "network", "n", "", "Filter endpoints by logical network name")
 	return cmd
 }
 

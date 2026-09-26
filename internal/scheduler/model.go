@@ -20,6 +20,7 @@ const (
 // TaskRequirements defines the placement and resource criteria required by a workload.
 type TaskRequirements struct {
 	TaskID          id.ID             `json:"task_id"`
+	ServiceID       id.ID             `json:"service_id,omitempty"` // Service identifier for replica spread
 	CPU             float64           `json:"cpu"`              // requested CPU cores (e.g. 0.5, 1.0, 2.0)
 	Memory          int64             `json:"memory"`           // requested Memory in bytes (e.g. 512*1024*1024)
 	RequiredRuntime string            `json:"required_runtime"` // "native", "docker", etc.
@@ -30,6 +31,9 @@ type TaskRequirements struct {
 	// Storage-aware scheduling: the selected worker must own ALL listed volumes.
 	// A task may list zero volumes (no storage constraint).
 	RequiredVolumes []string          `json:"required_volumes,omitempty"`
+	// RequiredPorts lists the host ports (e.g. 8080 or "8080/tcp") that must be bound on the worker.
+	// Used for port conflict prevention during scheduling.
+	RequiredPorts   []int             `json:"required_ports,omitempty"`
 }
 
 // WorkerCapacity represents the hardware and runtime profile of a candidate worker.
@@ -46,10 +50,14 @@ type WorkerCapacity struct {
 	NodeLabels          map[string]string `json:"node_labels,omitempty"`
 	Tags                []string          `json:"tags,omitempty"`
 	TaskCount           int               `json:"task_count"`
+	// ServiceTaskCounts maps ServiceID to the count of active replicas running on this worker.
+	ServiceTaskCounts   map[id.ID]int     `json:"service_task_counts,omitempty"`
 	// VolumeNames lists the names of CloudX volumes that physically reside on this worker.
 	// Used for storage-aware scheduling: tasks requiring a local volume are only placed
 	// on the worker that owns the volume.
 	VolumeNames         []string          `json:"volume_names,omitempty"`
+	// AllocatedPorts tracks host ports currently allocated/bound by active running tasks on this worker.
+	AllocatedPorts      []int             `json:"allocated_ports,omitempty"`
 }
 
 // CPUAvailable returns the unallocated CPU cores on this worker.
@@ -161,6 +169,24 @@ func CanFit(worker *WorkerCapacity, req *TaskRequirements) FitResult {
 				reasons = append(reasons, fmt.Sprintf(
 					"volume affinity unmet: task requires volume '%s' but worker '%s' does not own it (worker volumes: %v)",
 					reqVol, worker.WorkerID, worker.VolumeNames,
+				))
+			}
+		}
+	}
+
+	// 7. Port Mapping and Conflict check
+	// A task that requires explicit host port(s) cannot be scheduled onto a worker
+	// where any of those host ports are already allocated to an active running task.
+	if len(req.RequiredPorts) > 0 {
+		allocatedPortSet := make(map[int]bool, len(worker.AllocatedPorts))
+		for _, p := range worker.AllocatedPorts {
+			allocatedPortSet[p] = true
+		}
+		for _, reqPort := range req.RequiredPorts {
+			if allocatedPortSet[reqPort] {
+				reasons = append(reasons, fmt.Sprintf(
+					"port conflict: host port %d is already in use by an active task on worker %s",
+					reqPort, worker.WorkerID,
 				))
 			}
 		}

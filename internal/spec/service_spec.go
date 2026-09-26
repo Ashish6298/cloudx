@@ -37,6 +37,7 @@ type ServiceConfig struct {
 	UpdateStrategy *UpdateStrategyConfig `yaml:"update_strategy,omitempty" json:"update_strategy,omitempty"`
 	Ports          []PortSpec            `yaml:"ports,omitempty" json:"ports,omitempty"`
 	Volumes        []VolumeSpec          `yaml:"volumes,omitempty" json:"volumes,omitempty"`
+	Networks       []string              `yaml:"networks,omitempty" json:"networks,omitempty"`
 }
 
 // UpdateStrategyConfig defines parameters for rollout strategies.
@@ -286,6 +287,8 @@ func (s *ServiceConfig) Validate() (*ParsedResources, error) {
 	}
 
 	// 9. Ports validation
+	seenHostPorts := make(map[string]bool)
+	seenServicePorts := make(map[string]bool)
 	for i, p := range s.Ports {
 		if p.HostPort < 1 || p.HostPort > 65535 {
 			errs = append(errs, fmt.Sprintf("ports[%d]: invalid host port %d (must be between 1 and 65535)", i, p.HostPort))
@@ -293,15 +296,40 @@ func (s *ServiceConfig) Validate() (*ParsedResources, error) {
 		if p.ServicePort < 1 || p.ServicePort > 65535 {
 			errs = append(errs, fmt.Sprintf("ports[%d]: invalid service port %d (must be between 1 and 65535)", i, p.ServicePort))
 		}
-		if p.Protocol != "" && strings.ToLower(p.Protocol) != "tcp" && strings.ToLower(p.Protocol) != "udp" {
+		proto := strings.ToLower(p.Protocol)
+		if proto == "" {
+			proto = "tcp"
+		} else if proto != "tcp" && proto != "udp" {
 			errs = append(errs, fmt.Sprintf("ports[%d]: invalid protocol '%s' (must be 'tcp' or 'udp')", i, p.Protocol))
 		}
+
+		hostKey := fmt.Sprintf("%d/%s", p.HostPort, proto)
+		if seenHostPorts[hostKey] {
+			errs = append(errs, fmt.Sprintf("ports[%d]: duplicate host port %d/%s in service spec", i, p.HostPort, proto))
+		}
+		seenHostPorts[hostKey] = true
+
+		svcKey := fmt.Sprintf("%d/%s", p.ServicePort, proto)
+		if seenServicePorts[svcKey] {
+			errs = append(errs, fmt.Sprintf("ports[%d]: duplicate service port %d/%s in service spec", i, p.ServicePort, proto))
+		}
+		seenServicePorts[svcKey] = true
 	}
 
-	// 9. Volumes validation
+	// 10. Volumes validation
 	for i, v := range s.Volumes {
 		if v.Target == "" && v.VolumeName == "" {
 			errs = append(errs, fmt.Sprintf("volumes[%d]: target mount path or volume name is required", i))
+		}
+	}
+
+	// 11. Networks validation
+	for i, netName := range s.Networks {
+		trimmed := strings.TrimSpace(netName)
+		if trimmed == "" {
+			errs = append(errs, fmt.Sprintf("networks[%d]: network name cannot be empty", i))
+		} else if !validNameRegex.MatchString(trimmed) {
+			errs = append(errs, fmt.Sprintf("networks[%d]: invalid network name '%s': must consist of alphanumeric characters, '-', '_', or '.'", i, trimmed))
 		}
 	}
 

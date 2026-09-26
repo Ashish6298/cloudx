@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/state"
@@ -23,19 +24,24 @@ import (
 // Server is the gRPC API server for CloudX Control Plane.
 type Server struct {
 	v1.UnimplementedControlPlaneServiceServer
-	mu         sync.RWMutex
-	store      state.Store
-	logger     logging.Logger
-	grpcServer *grpc.Server
-	listener   net.Listener
-	address    string
+	mu             sync.RWMutex
+	store          state.Store
+	logger         logging.Logger
+	grpcServer     *grpc.Server
+	listener       net.Listener
+	address        string
+	clusterID      string
+	tokenValidator *auth.TokenValidator
 }
 
 // ServerOptions configures the gRPC server.
 type ServerOptions struct {
-	Address string
-	Store   state.Store
-	Logger  logging.Logger
+	Address        string
+	ClusterID      string
+	Store          state.Store
+	Logger         logging.Logger
+	BootstrapToken string
+	TokenValidator *auth.TokenValidator
 }
 
 // NewServer creates a new gRPC Server instance.
@@ -47,10 +53,25 @@ func NewServer(opts ServerOptions) (*Server, error) {
 		opts.Logger = logging.NewDefaultLogger()
 	}
 
+	clusterID := opts.ClusterID
+	if clusterID == "" {
+		clusterID = "cloudx-cluster-main"
+	}
+
+	tv := opts.TokenValidator
+	if tv == nil {
+		tv = auth.NewTokenValidator(clusterID)
+		if opts.BootstrapToken != "" {
+			tv.AddToken(opts.BootstrapToken, 0)
+		}
+	}
+
 	s := &Server{
-		store:   opts.Store,
-		logger:  opts.Logger,
-		address: opts.Address,
+		store:          opts.Store,
+		logger:         opts.Logger,
+		address:        opts.Address,
+		clusterID:      clusterID,
+		tokenValidator: tv,
 	}
 
 	// Logging & Request ID Interceptor
@@ -135,6 +156,27 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 		return nil, status.Error(codes.InvalidArgument, "worker address must not be empty")
 	}
 
+	// 1. Cluster Bootstrap Token and Target Cluster Authentication
+	if s.tokenValidator != nil && s.tokenValidator.HasTokens() {
+		reqToken := ""
+		if req.Metadata != nil {
+			reqToken = req.Metadata["bootstrap_token"]
+		}
+		targetCluster := ""
+		if req.Metadata != nil {
+			targetCluster = req.Metadata["cluster_id"]
+		}
+
+		res := s.tokenValidator.Validate(reqToken, targetCluster)
+		if !res.Valid {
+			s.logger.Warn("Worker registration rejected from %s (worker: %s): %s", req.Address, req.WorkerId, res.Reason)
+			return &v1.RegisterWorkerResponse{
+				Accepted: false,
+				Message:  fmt.Sprintf("unauthorized: %s", res.Reason),
+			}, nil
+		}
+	}
+
 	// Validate node exists or create placeholder if node_id provided
 	nodeID := id.ID(req.NodeId)
 	if nodeID == "" {
@@ -162,7 +204,7 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 	workerID := id.ID(req.WorkerId)
 	now := time.Now().UTC()
 
-	// Safe duplicate handling: if already registered from same address, update & return success; if address mismatch, reject
+	// 2. Reject Duplicate Identity across different addresses / different node IDs
 	existing, _ := s.store.Workers().Get(ctx, workerID)
 	if existing != nil {
 		if existing.Address == req.Address {
@@ -175,7 +217,7 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 			return &v1.RegisterWorkerResponse{
 				Accepted:            true,
 				Message:             "Worker re-registered successfully",
-				ClusterId:           "cloudx-cluster-main",
+				ClusterId:           s.clusterID,
 				RegisteredAt:        now.Unix(),
 				HeartbeatIntervalMs: 5000,
 				WorkerConfig: map[string]string{
@@ -184,7 +226,9 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 				},
 			}, nil
 		}
-		return nil, status.Errorf(codes.AlreadyExists, "worker %s is already registered with a different address (%s)", req.WorkerId, existing.Address)
+		// Duplicate identity detected on another address
+		s.logger.Warn("Worker registration rejected: duplicate identity %s from address %s (already registered at %s)", req.WorkerId, req.Address, existing.Address)
+		return nil, status.Errorf(codes.AlreadyExists, "duplicate identity: worker %s is already registered with a different address (%s)", req.WorkerId, existing.Address)
 	}
 
 	worker := &models.Worker{
@@ -214,7 +258,7 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 	return &v1.RegisterWorkerResponse{
 		Accepted:            true,
 		Message:             "Worker registered successfully",
-		ClusterId:           "cloudx-cluster-main",
+		ClusterId:           s.clusterID,
 		RegisteredAt:        now.Unix(),
 		HeartbeatIntervalMs: 5000,
 		WorkerConfig: map[string]string{
@@ -236,7 +280,9 @@ func (s *Server) Heartbeat(ctx context.Context, req *v1.HeartbeatRequest) (*v1.H
 	}
 
 	worker.Heartbeat = time.Now().UTC()
-	worker.Status = "READY"
+	if worker.Status != "DRAINING" && worker.Status != "EMPTY" {
+		worker.Status = "READY"
+	}
 	if err := s.store.Workers().Update(ctx, worker); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update worker heartbeat: %v", err)
 	}
