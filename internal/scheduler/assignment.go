@@ -167,16 +167,26 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 	}
 
 	workerTaskCount := make(map[id.ID]int)
+	workerServiceTaskCounts := make(map[id.ID]map[id.ID]int)
 	workerAllocatedPorts := make(map[id.ID][]int)
 	for _, t := range tasks {
 		if t.WorkerID != "" && t.State != string(models.TaskStateStopped) && t.State != string(models.TaskStateFailed) && t.State != string(models.TaskStateLost) {
 			workerTaskCount[t.WorkerID]++
 			if t.ServiceID != "" {
+				if workerServiceTaskCounts[t.WorkerID] == nil {
+					workerServiceTaskCounts[t.WorkerID] = make(map[id.ID]int)
+				}
+				workerServiceTaskCounts[t.WorkerID][t.ServiceID]++
+
 				if ports, ok := servicePortMap[t.ServiceID]; ok {
 					workerAllocatedPorts[t.WorkerID] = append(workerAllocatedPorts[t.WorkerID], ports...)
 				}
 			}
 		}
+	}
+
+	if opts.ServiceID != "" && opts.Requirements.ServiceID == "" {
+		opts.Requirements.ServiceID = opts.ServiceID
 	}
 
 	// Fetch volumes to compute per-worker volume ownership for storage-aware scheduling.
@@ -217,6 +227,7 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 			MemoryAllocated:     int64(workerTaskCount[w.ID]) * 512 * 1024 * 1024,
 			RuntimeCapabilities: []string{"native", "docker"},
 			TaskCount:           workerTaskCount[w.ID],
+			ServiceTaskCounts:   workerServiceTaskCounts[w.ID],
 			// Storage affinity: populate volumes that physically reside on this worker
 			VolumeNames:         workerVolumeNames[w.ID],
 			// Port mappings: populate host ports currently in use on this worker

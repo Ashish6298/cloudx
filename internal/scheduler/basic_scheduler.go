@@ -157,6 +157,14 @@ func (s *BasicScheduler) ScoreWorker(w *WorkerCapacity, req *TaskRequirements) f
 	// Prefer nodes with fewer active workloads to spread load
 	taskCountScore := 10.0 / (1.0 + float64(w.TaskCount))
 
-	totalScore := cpuScore + memScore + pressureScore + taskCountScore
+	// 5. Service Replica Anti-Affinity Spread (0 to 50 points)
+	// Heavily prefer nodes that do NOT currently run replicas of this same service
+	var serviceSpreadScore float64 = 50.0
+	if req.ServiceID != "" && len(w.ServiceTaskCounts) > 0 {
+		sameServiceReplicas := w.ServiceTaskCounts[req.ServiceID]
+		serviceSpreadScore = 50.0 / (1.0 + float64(sameServiceReplicas*5))
+	}
+
+	totalScore := cpuScore + memScore + pressureScore + taskCountScore + serviceSpreadScore
 	return totalScore
 }

@@ -20,6 +20,7 @@ const (
 // TaskRequirements defines the placement and resource criteria required by a workload.
 type TaskRequirements struct {
 	TaskID          id.ID             `json:"task_id"`
+	ServiceID       id.ID             `json:"service_id,omitempty"` // Service identifier for replica spread
 	CPU             float64           `json:"cpu"`              // requested CPU cores (e.g. 0.5, 1.0, 2.0)
 	Memory          int64             `json:"memory"`           // requested Memory in bytes (e.g. 512*1024*1024)
 	RequiredRuntime string            `json:"required_runtime"` // "native", "docker", etc.
@@ -49,6 +50,8 @@ type WorkerCapacity struct {
 	NodeLabels          map[string]string `json:"node_labels,omitempty"`
 	Tags                []string          `json:"tags,omitempty"`
 	TaskCount           int               `json:"task_count"`
+	// ServiceTaskCounts maps ServiceID to the count of active replicas running on this worker.
+	ServiceTaskCounts   map[id.ID]int     `json:"service_task_counts,omitempty"`
 	// VolumeNames lists the names of CloudX volumes that physically reside on this worker.
 	// Used for storage-aware scheduling: tasks requiring a local volume are only placed
 	// on the worker that owns the volume.
