@@ -235,6 +235,26 @@ func TestServiceConfig_ValidationErrors(t *testing.T) {
 			errMatch: "duplicate service port 8000/tcp",
 		},
 		{
+			name: "invalid network name",
+			svc: ServiceConfig{
+				Name:     "api",
+				Command:  "./api",
+				Networks: []string{"bad network!"},
+			},
+			wantErr:  true,
+			errMatch: "invalid network name 'bad network!'",
+		},
+		{
+			name: "empty network name",
+			svc: ServiceConfig{
+				Name:     "api",
+				Command:  "./api",
+				Networks: []string{""},
+			},
+			wantErr:  true,
+			errMatch: "network name cannot be empty",
+		},
+		{
 			name: "invalid cpu format",
 			svc: ServiceConfig{
 				Name:    "api",

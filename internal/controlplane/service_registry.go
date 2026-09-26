@@ -112,7 +112,7 @@ func (rm *RegistryManager) OnTaskStateChange(ctx context.Context, task *models.T
 		host = "127.0.0.1"
 	}
 
-	port, proto := resolvePortFromSpec(svc)
+	port, proto, networks := resolveDetailsFromSpec(svc)
 	var formattedAddr string
 	if port > 0 {
 		formattedAddr = net.JoinHostPort(host, strconv.Itoa(port))
@@ -129,6 +129,7 @@ func (rm *RegistryManager) OnTaskStateChange(ctx context.Context, task *models.T
 		Port:        port,
 		Address:     formattedAddr,
 		Protocol:    proto,
+		Networks:    networks,
 		Healthy:     true,
 		UpdatedAt:   time.Now().UTC(),
 	}
@@ -208,6 +209,26 @@ func (cp *ControlPlane) ResolveServiceOne(ctx context.Context, serviceNameOrID s
 	return eps[0], nil
 }
 
+// ResolveServiceInNetwork returns healthy endpoints for a service filtered within a logical network.
+func (cp *ControlPlane) ResolveServiceInNetwork(ctx context.Context, serviceNameOrID, networkName string) ([]*registry.Endpoint, error) {
+	if cp.RegistryManager == nil {
+		return nil, fmt.Errorf("registry manager is not initialized")
+	}
+
+	_ = cp.RegistryManager.Refresh(ctx)
+	return cp.RegistryManager.ServiceRegistry().LookupServiceInNetwork(serviceNameOrID, networkName), nil
+}
+
+// ResolveNetwork returns all healthy endpoints belonging to a given logical network.
+func (cp *ControlPlane) ResolveNetwork(ctx context.Context, networkName string) ([]*registry.Endpoint, error) {
+	if cp.RegistryManager == nil {
+		return nil, fmt.Errorf("registry manager is not initialized")
+	}
+
+	_ = cp.RegistryManager.Refresh(ctx)
+	return cp.RegistryManager.ServiceRegistry().LookupByNetwork(networkName), nil
+}
+
 // ServiceResolver returns a ServiceResolver instance backed by the ControlPlane.
 func (cp *ControlPlane) ServiceResolver() registry.ServiceResolver {
 	if cp.RegistryManager == nil {
@@ -245,29 +266,29 @@ func resolveHostFromAddr(addr string) string {
 	return addr
 }
 
-func resolvePortFromSpec(svc *models.Service) (int, string) {
+func resolveDetailsFromSpec(svc *models.Service) (int, string, []string) {
 	if svc == nil {
-		return 0, "tcp"
+		return 0, "tcp", nil
 	}
 	if svc.SpecJSON != "" {
 		var cfg spec.ServiceConfig
 		if err := json.Unmarshal([]byte(svc.SpecJSON), &cfg); err == nil {
+			portVal := 0
+			proto := "tcp"
 			if len(cfg.Ports) > 0 {
 				p := cfg.Ports[0]
-				portVal := p.HostPort
+				portVal = p.HostPort
 				if portVal <= 0 {
 					portVal = p.ServicePort
 				}
-				proto := p.Protocol
-				if proto == "" {
-					proto = "tcp"
+				if p.Protocol != "" {
+					proto = p.Protocol
 				}
-				return portVal, proto
+			} else if cfg.HealthCheck != nil && cfg.HealthCheck.Port > 0 {
+				portVal = cfg.HealthCheck.Port
 			}
-			if cfg.HealthCheck != nil && cfg.HealthCheck.Port > 0 {
-				return cfg.HealthCheck.Port, "tcp"
-			}
+			return portVal, proto, cfg.Networks
 		}
 	}
-	return 0, "tcp"
+	return 0, "tcp", nil
 }

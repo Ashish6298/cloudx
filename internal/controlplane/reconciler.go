@@ -233,6 +233,16 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 			}
 		}
 
+		// Prepare task environment including logical network metadata
+		taskEnv := make(map[string]string)
+		for k, v := range svcConfig.Environment {
+			taskEnv[k] = v
+		}
+		if len(svcConfig.Networks) > 0 {
+			taskEnv["CLOUDX_NETWORK"] = svcConfig.Networks[0]
+			taskEnv["CLOUDX_NETWORKS"] = strings.Join(svcConfig.Networks, ",")
+		}
+
 		// 3. Identify active/desired deployment for this service
 		var targetDeployment *models.Deployment
 		deps, _ := store.Deployments().ListByService(ctx, svc.ID)
@@ -326,7 +336,7 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 						Spec: scheduler.TaskSpec{
 							Command:         svcConfig.Command,
 							Args:            svcConfig.Args,
-							Environment:     svcConfig.Environment,
+							Environment:     taskEnv,
 							WorkingDir:      svcConfig.WorkingDir,
 							Runtime:         svc.Runtime,
 							RequiredPorts:   svcHostPorts,
@@ -382,7 +392,7 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, 
 						Spec: scheduler.TaskSpec{
 							Command:         svcConfig.Command,
 							Args:            svcConfig.Args,
-							Environment:     svcConfig.Environment,
+							Environment:     taskEnv,
 							WorkingDir:      svcConfig.WorkingDir,
 							Runtime:         svc.Runtime,
 							RequiredPorts:   svcHostPorts,

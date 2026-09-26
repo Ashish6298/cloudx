@@ -37,6 +37,7 @@ type ServiceConfig struct {
 	UpdateStrategy *UpdateStrategyConfig `yaml:"update_strategy,omitempty" json:"update_strategy,omitempty"`
 	Ports          []PortSpec            `yaml:"ports,omitempty" json:"ports,omitempty"`
 	Volumes        []VolumeSpec          `yaml:"volumes,omitempty" json:"volumes,omitempty"`
+	Networks       []string              `yaml:"networks,omitempty" json:"networks,omitempty"`
 }
 
 // UpdateStrategyConfig defines parameters for rollout strategies.
@@ -319,6 +320,16 @@ func (s *ServiceConfig) Validate() (*ParsedResources, error) {
 	for i, v := range s.Volumes {
 		if v.Target == "" && v.VolumeName == "" {
 			errs = append(errs, fmt.Sprintf("volumes[%d]: target mount path or volume name is required", i))
+		}
+	}
+
+	// 11. Networks validation
+	for i, netName := range s.Networks {
+		trimmed := strings.TrimSpace(netName)
+		if trimmed == "" {
+			errs = append(errs, fmt.Sprintf("networks[%d]: network name cannot be empty", i))
+		} else if !validNameRegex.MatchString(trimmed) {
+			errs = append(errs, fmt.Sprintf("networks[%d]: invalid network name '%s': must consist of alphanumeric characters, '-', '_', or '.'", i, trimmed))
 		}
 	}
 

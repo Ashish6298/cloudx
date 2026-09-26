@@ -27,6 +27,7 @@ type Endpoint struct {
 	Port        int       `json:"port"`
 	Address     string    `json:"address"` // Formatted as host:port
 	Protocol    string    `json:"protocol"` // e.g. "tcp", "udp", "http"
+	Networks    []string  `json:"networks,omitempty"` // Logical networks this endpoint belongs to
 	Healthy     bool      `json:"healthy"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -41,6 +42,10 @@ type ServiceRegistry interface {
 	Lookup(serviceName string) []*Endpoint
 	// LookupByID returns all currently healthy endpoints for a given service ID.
 	LookupByID(serviceID id.ID) []*Endpoint
+	// LookupByNetwork returns all healthy endpoints belonging to a given logical network.
+	LookupByNetwork(networkName string) []*Endpoint
+	// LookupServiceInNetwork returns healthy endpoints for a service within a specific logical network.
+	LookupServiceInNetwork(serviceName, networkName string) []*Endpoint
 	// ListAll returns a snapshot map of all registered service names to their healthy endpoints.
 	ListAll() map[string][]*Endpoint
 	// Refresh synchronizes the registry against the authoritative cluster state store.
@@ -55,6 +60,7 @@ type InMemoryRegistry struct {
 	endpoints map[id.ID]*Endpoint // Keyed by TaskID
 	byService map[string]map[id.ID]*Endpoint
 	bySvcID   map[id.ID]map[id.ID]*Endpoint
+	byNetwork map[string]map[id.ID]*Endpoint
 	logger    logging.Logger
 }
 
@@ -67,6 +73,7 @@ func NewInMemoryRegistry(logger logging.Logger) *InMemoryRegistry {
 		endpoints: make(map[id.ID]*Endpoint),
 		byService: make(map[string]map[id.ID]*Endpoint),
 		bySvcID:   make(map[id.ID]map[id.ID]*Endpoint),
+		byNetwork: make(map[string]map[id.ID]*Endpoint),
 		logger:    logger.With("component", "service_registry"),
 	}
 }
@@ -119,6 +126,17 @@ func (r *InMemoryRegistry) Register(ep *Endpoint) error {
 		r.bySvcID[ep.ServiceID][ep.TaskID] = &epCopy
 	}
 
+	for _, netName := range ep.Networks {
+		netKey := strings.ToLower(netName)
+		if netKey == "" {
+			continue
+		}
+		if r.byNetwork[netKey] == nil {
+			r.byNetwork[netKey] = make(map[id.ID]*Endpoint)
+		}
+		r.byNetwork[netKey][ep.TaskID] = &epCopy
+	}
+
 	return nil
 }
 
@@ -151,6 +169,16 @@ func (r *InMemoryRegistry) removeLocked(taskID id.ID) {
 			delete(idMap, taskID)
 			if len(idMap) == 0 {
 				delete(r.bySvcID, existing.ServiceID)
+			}
+		}
+	}
+
+	for _, netName := range existing.Networks {
+		netKey := strings.ToLower(netName)
+		if netMap, ok := r.byNetwork[netKey]; ok {
+			delete(netMap, taskID)
+			if len(netMap) == 0 {
+				delete(r.byNetwork, netKey)
 			}
 		}
 	}
@@ -193,6 +221,51 @@ func (r *InMemoryRegistry) LookupByID(serviceID id.ID) []*Endpoint {
 	return result
 }
 
+// LookupByNetwork returns all healthy endpoints belonging to a given logical network (case-insensitive).
+func (r *InMemoryRegistry) LookupByNetwork(networkName string) []*Endpoint {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	netKey := strings.ToLower(networkName)
+	netMap, ok := r.byNetwork[netKey]
+	if !ok || len(netMap) == 0 {
+		return []*Endpoint{}
+	}
+
+	result := make([]*Endpoint, 0, len(netMap))
+	for _, ep := range netMap {
+		epCopy := *ep
+		result = append(result, &epCopy)
+	}
+	return result
+}
+
+// LookupServiceInNetwork returns healthy endpoints for a service filtered within a specific logical network.
+func (r *InMemoryRegistry) LookupServiceInNetwork(serviceName, networkName string) []*Endpoint {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	svcKey := strings.ToLower(serviceName)
+	netKey := strings.ToLower(networkName)
+
+	netMap, ok := r.byNetwork[netKey]
+	if !ok || len(netMap) == 0 {
+		return []*Endpoint{}
+	}
+
+	var result []*Endpoint
+	for _, ep := range netMap {
+		if strings.EqualFold(ep.ServiceName, svcKey) || string(ep.ServiceID) == serviceName {
+			epCopy := *ep
+			result = append(result, &epCopy)
+		}
+	}
+	if result == nil {
+		return []*Endpoint{}
+	}
+	return result
+}
+
 // ListAll returns a snapshot copy of all services and their registered endpoints.
 func (r *InMemoryRegistry) ListAll() map[string][]*Endpoint {
 	r.mu.RLock()
@@ -217,6 +290,7 @@ func (r *InMemoryRegistry) Clear() {
 	r.endpoints = make(map[id.ID]*Endpoint)
 	r.byService = make(map[string]map[id.ID]*Endpoint)
 	r.bySvcID = make(map[id.ID]map[id.ID]*Endpoint)
+	r.byNetwork = make(map[string]map[id.ID]*Endpoint)
 }
 
 // Refresh reconciles the registry against the current authoritative state store.
@@ -288,8 +362,8 @@ func (r *InMemoryRegistry) Refresh(ctx context.Context, store state.Store) error
 			host = "127.0.0.1"
 		}
 
-		// Resolve port and protocol from service spec
-		port, proto := resolveServicePort(svc)
+		// Resolve port, protocol, and networks from service spec
+		port, proto, networks := resolveServiceDetails(svc)
 
 		var formattedAddr string
 		if port > 0 {
@@ -307,6 +381,7 @@ func (r *InMemoryRegistry) Refresh(ctx context.Context, store state.Store) error
 			Port:        port,
 			Address:     formattedAddr,
 			Protocol:    proto,
+			Networks:    networks,
 			Healthy:     true,
 			UpdatedAt:   time.Now().UTC(),
 		}
@@ -321,6 +396,7 @@ func (r *InMemoryRegistry) Refresh(ctx context.Context, store state.Store) error
 	r.endpoints = make(map[id.ID]*Endpoint, len(newEndpoints))
 	r.byService = make(map[string]map[id.ID]*Endpoint)
 	r.bySvcID = make(map[id.ID]map[id.ID]*Endpoint)
+	r.byNetwork = make(map[string]map[id.ID]*Endpoint)
 
 	for taskID, ep := range newEndpoints {
 		r.endpoints[taskID] = ep
@@ -335,6 +411,17 @@ func (r *InMemoryRegistry) Refresh(ctx context.Context, store state.Store) error
 				r.bySvcID[ep.ServiceID] = make(map[id.ID]*Endpoint)
 			}
 			r.bySvcID[ep.ServiceID][taskID] = ep
+		}
+
+		for _, netName := range ep.Networks {
+			netKey := strings.ToLower(netName)
+			if netKey == "" {
+				continue
+			}
+			if r.byNetwork[netKey] == nil {
+				r.byNetwork[netKey] = make(map[id.ID]*Endpoint)
+			}
+			r.byNetwork[netKey][taskID] = ep
 		}
 	}
 
@@ -354,33 +441,32 @@ func resolveHost(addr string) string {
 	return addr
 }
 
-// resolveServicePort inspects the service's SpecJSON or defaults to find exposed port and protocol.
-func resolveServicePort(svc *models.Service) (int, string) {
+// resolveServiceDetails inspects the service's SpecJSON to find exposed port, protocol, and networks.
+func resolveServiceDetails(svc *models.Service) (int, string, []string) {
 	if svc == nil {
-		return 0, "tcp"
+		return 0, "tcp", nil
 	}
 
 	if svc.SpecJSON != "" {
 		var cfg spec.ServiceConfig
 		if err := json.Unmarshal([]byte(svc.SpecJSON), &cfg); err == nil {
+			portVal := 0
+			proto := "tcp"
 			if len(cfg.Ports) > 0 {
 				p := cfg.Ports[0]
-				portVal := p.HostPort
+				portVal = p.HostPort
 				if portVal <= 0 {
 					portVal = p.ServicePort
 				}
-				proto := p.Protocol
-				if proto == "" {
-					proto = "tcp"
+				if p.Protocol != "" {
+					proto = p.Protocol
 				}
-				return portVal, proto
+			} else if cfg.HealthCheck != nil && cfg.HealthCheck.Port > 0 {
+				portVal = cfg.HealthCheck.Port
 			}
-			// Check HealthCheck port as fallback if specified
-			if cfg.HealthCheck != nil && cfg.HealthCheck.Port > 0 {
-				return cfg.HealthCheck.Port, "tcp"
-			}
+			return portVal, proto, cfg.Networks
 		}
 	}
 
-	return 0, "tcp"
+	return 0, "tcp", nil
 }

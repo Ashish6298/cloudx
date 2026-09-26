@@ -16,6 +16,10 @@ type ServiceResolver interface {
 	ResolveService(ctx context.Context, serviceNameOrID string) ([]*Endpoint, error)
 	// ResolveOne returns a single healthy endpoint for the specified service (e.g., for quick client connections).
 	ResolveOne(ctx context.Context, serviceNameOrID string) (*Endpoint, error)
+	// ResolveServiceInNetwork returns healthy endpoints for a service scoped to a specific logical network.
+	ResolveServiceInNetwork(ctx context.Context, serviceNameOrID, networkName string) ([]*Endpoint, error)
+	// ResolveNetwork returns all healthy endpoints belonging to a given logical network.
+	ResolveNetwork(ctx context.Context, networkName string) ([]*Endpoint, error)
 }
 
 // StoreResolver implements ServiceResolver directly against the cluster state store and registry.
@@ -72,6 +76,37 @@ func (r *StoreResolver) ResolveService(ctx context.Context, serviceNameOrID stri
 	}
 
 	return []*Endpoint{}, nil
+}
+
+// ResolveServiceInNetwork returns healthy endpoints for a service scoped to a specific logical network.
+func (r *StoreResolver) ResolveServiceInNetwork(ctx context.Context, serviceNameOrID, networkName string) ([]*Endpoint, error) {
+	if strings.TrimSpace(serviceNameOrID) == "" {
+		return nil, fmt.Errorf("service name or ID must not be empty")
+	}
+	if strings.TrimSpace(networkName) == "" {
+		return r.ResolveService(ctx, serviceNameOrID)
+	}
+
+	if r.store != nil {
+		_ = r.registry.Refresh(ctx, r.store)
+	}
+
+	eps := r.registry.LookupServiceInNetwork(serviceNameOrID, networkName)
+	return eps, nil
+}
+
+// ResolveNetwork returns all healthy endpoints belonging to a given logical network.
+func (r *StoreResolver) ResolveNetwork(ctx context.Context, networkName string) ([]*Endpoint, error) {
+	if strings.TrimSpace(networkName) == "" {
+		return nil, fmt.Errorf("network name must not be empty")
+	}
+
+	if r.store != nil {
+		_ = r.registry.Refresh(ctx, r.store)
+	}
+
+	eps := r.registry.LookupByNetwork(networkName)
+	return eps, nil
 }
 
 // ResolveOne returns the first healthy endpoint for a given service, or an error if none are available.

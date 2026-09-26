@@ -46,6 +46,7 @@ type DeploymentConfig struct {
 	UpdateStrategy *UpdateStrategySpec  `json:"update_strategy,omitempty"`
 	Ports          []PortMapping        `json:"ports,omitempty"`
 	Volumes        []VolumeMount        `json:"volumes,omitempty"`
+	Networks       []string             `json:"networks,omitempty"`
 }
 
 // ComputeHash generates a deterministic SHA-256 fingerprint for a deployment configuration.
@@ -66,6 +67,11 @@ func (c *DeploymentConfig) ComputeHash() string {
 		sortedEnv = append(sortedEnv, sortedEnvPair{Key: k, Value: c.Environment[k]})
 	}
 
+	// Sort networks deterministically
+	sortedNets := make([]string, len(c.Networks))
+	copy(sortedNets, c.Networks)
+	sort.Strings(sortedNets)
+
 	raw := struct {
 		Command        string               `json:"command"`
 		Args           []string             `json:"args,omitempty"`
@@ -80,6 +86,7 @@ func (c *DeploymentConfig) ComputeHash() string {
 		UpdateStrategy *UpdateStrategySpec  `json:"update_strategy,omitempty"`
 		Ports          []PortMapping        `json:"ports,omitempty"`
 		Volumes        []VolumeMount        `json:"volumes,omitempty"`
+		Networks       []string             `json:"networks,omitempty"`
 	}{
 		Command:        c.Command,
 		Args:           c.Args,
@@ -94,6 +101,7 @@ func (c *DeploymentConfig) ComputeHash() string {
 		UpdateStrategy: c.UpdateStrategy,
 		Ports:          c.Ports,
 		Volumes:        c.Volumes,
+		Networks:       sortedNets,
 	}
 
 	b, _ := json.Marshal(raw)

@@ -295,3 +295,78 @@ func TestInMemoryRegistry_ListAllAndClear(t *testing.T) {
 		t.Fatalf("expected 0 services after Clear, got %d", len(allCleared))
 	}
 }
+
+func TestInMemoryRegistry_NetworkLookup(t *testing.T) {
+	reg := registry.NewInMemoryRegistry(logging.NewDefaultLogger())
+
+	ep1 := &registry.Endpoint{
+		ServiceID:   id.NewServiceID(),
+		ServiceName: "auth-api",
+		TaskID:      id.NewTaskID(),
+		WorkerID:    id.NewWorkerID(),
+		Address:     "10.0.0.1:8000",
+		Networks:    []string{"backend", "secure-net"},
+		Healthy:     true,
+	}
+
+	ep2 := &registry.Endpoint{
+		ServiceID:   id.NewServiceID(),
+		ServiceName: "db",
+		TaskID:      id.NewTaskID(),
+		WorkerID:    id.NewWorkerID(),
+		Address:     "10.0.0.2:5432",
+		Networks:    []string{"backend"},
+		Healthy:     true,
+	}
+
+	ep3 := &registry.Endpoint{
+		ServiceID:   id.NewServiceID(),
+		ServiceName: "web-portal",
+		TaskID:      id.NewTaskID(),
+		WorkerID:    id.NewWorkerID(),
+		Address:     "10.0.0.3:80",
+		Networks:    []string{"frontend"},
+		Healthy:     true,
+	}
+
+	_ = reg.Register(ep1)
+	_ = reg.Register(ep2)
+	_ = reg.Register(ep3)
+
+	// 1. Lookup by network "backend" (case-insensitive) -> should return auth-api and db
+	backendEps := reg.LookupByNetwork("BACKEND")
+	if len(backendEps) != 2 {
+		t.Fatalf("expected 2 endpoints in backend network, got %d", len(backendEps))
+	}
+
+	// 2. Lookup by network "secure-net" -> should return auth-api
+	secureEps := reg.LookupByNetwork("secure-net")
+	if len(secureEps) != 1 || secureEps[0].ServiceName != "auth-api" {
+		t.Fatalf("expected 1 endpoint (auth-api) in secure-net, got %v", secureEps)
+	}
+
+	// 3. LookupServiceInNetwork("auth-api", "backend") -> returns ep1
+	authInBackend := reg.LookupServiceInNetwork("auth-api", "backend")
+	if len(authInBackend) != 1 || authInBackend[0].TaskID != ep1.TaskID {
+		t.Fatalf("expected ep1 for auth-api in backend, got %v", authInBackend)
+	}
+
+	// 4. LookupServiceInNetwork("web-portal", "backend") -> returns 0 (not in backend)
+	webInBackend := reg.LookupServiceInNetwork("web-portal", "backend")
+	if len(webInBackend) != 0 {
+		t.Fatalf("expected 0 endpoints for web-portal in backend, got %d", len(webInBackend))
+	}
+
+	// 5. Deregister ep1 -> backend has only db left, secure-net has 0
+	_ = reg.Deregister(ep1.TaskID)
+	backendAfter := reg.LookupByNetwork("backend")
+	if len(backendAfter) != 1 || backendAfter[0].ServiceName != "db" {
+		t.Fatalf("expected only db in backend after deregistering ep1, got %v", backendAfter)
+	}
+
+	secureAfter := reg.LookupByNetwork("secure-net")
+	if len(secureAfter) != 0 {
+		t.Fatalf("expected 0 endpoints in secure-net after deregistering ep1, got %d", len(secureAfter))
+	}
+}
+

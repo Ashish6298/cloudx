@@ -193,6 +193,7 @@ func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.Servi
 		UpdateStrategy: updateStrategy,
 		Ports:          ports,
 		Volumes:        vols,
+		Networks:       svcConfig.Networks,
 	}
 
 	immDeployment := &models.ImmutableDeployment{

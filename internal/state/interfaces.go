@@ -107,6 +107,7 @@ type VolumeRepository interface {
 type NetworkRepository interface {
 	Create(ctx context.Context, n *models.Network) error
 	Get(ctx context.Context, id id.ID) (*models.Network, error)
+	GetByName(ctx context.Context, name string) (*models.Network, error)
 	List(ctx context.Context) ([]*models.Network, error)
 	Update(ctx context.Context, n *models.Network) error
 	Delete(ctx context.Context, id id.ID) error
