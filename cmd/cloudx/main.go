@@ -36,9 +36,10 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 
 	cmd.AddCommand(newVersionCmd())
 	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newServerCmd())
 	cmd.AddCommand(newClusterCmd())
-	cmd.AddCommand(newClusterStatusCmd())
 	cmd.AddCommand(newWorkerCmd())
 	cmd.AddCommand(newDeployCmd())
 	cmd.AddCommand(newDeploymentCmd())
@@ -55,6 +56,20 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.AddCommand(newDiagnoseCmd())
 	cmd.AddCommand(newFailCmd())
 	return cmd
+}
+
+func newInitCmd() *cobra.Command {
+	initCmd := newClusterInitCmd()
+	initCmd.Use = "init"
+	initCmd.Short = "Initialize CloudX local cluster storage and configuration (alias for 'cloudx cluster init')"
+	return initCmd
+}
+
+func newStatusCmd() *cobra.Command {
+	statusCmd := newClusterStatusCmd()
+	statusCmd.Use = "status"
+	statusCmd.Short = "Display CloudX cluster health, topology, and summary statistics"
+	return statusCmd
 }
 
 func newVersionCmd() *cobra.Command {

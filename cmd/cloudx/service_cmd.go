@@ -18,6 +18,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/logs"
 	"github.com/cloudx-org/cloudx/internal/registry"
 	"github.com/cloudx-org/cloudx/internal/spec"
+	"github.com/cloudx-org/cloudx/internal/state/models"
 	"github.com/cloudx-org/cloudx/internal/state/sqlite"
 	"github.com/spf13/cobra"
 )
@@ -167,6 +168,7 @@ func newServiceCmd() *cobra.Command {
 	cmd.AddCommand(newServiceListCmd())
 	cmd.AddCommand(newServiceInspectCmd())
 	cmd.AddCommand(newServiceScaleCmd())
+	cmd.AddCommand(newServiceRestartCmd())
 	cmd.AddCommand(newServiceEndpointsCmd())
 	cmd.AddCommand(newServiceLogsCmd())
 	return cmd
@@ -385,6 +387,116 @@ func newServiceScaleCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output scale result as JSON")
+	return cmd
+}
+
+func newServiceRestartCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "restart <service-name-or-id>",
+		Short: "Restart all tasks for a service and trigger rolling recovery",
+		Long: `Stop existing running tasks for a service to force a fresh restart and reconciliation across cluster workers.
+
+Examples:
+  cloudx service restart api
+  cloudx service restart srv-18f45a2b-8a7f9b2c
+  cloudx service restart api --json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serviceNameOrID := args[0]
+			out := cmd.OutOrStdout()
+
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to connect to cluster store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logging.NewDefaultLogger(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			inspectRes, err := cp.InspectService(ctx, serviceNameOrID)
+			if err != nil {
+				return err
+			}
+
+			svc := inspectRes.Service
+			now := time.Now().UTC()
+
+			// Mark all currently running/active tasks for this service as stopped
+			stoppedCount := 0
+			for _, t := range inspectRes.Tasks {
+				if t.State != string(models.TaskStateStopped) && t.State != string(models.TaskStateFailed) && t.State != string(models.TaskStateLost) {
+					t.State = string(models.TaskStateStopped)
+					t.UpdatedAt = now
+					_ = store.Tasks().Update(ctx, t)
+					stoppedCount++
+				}
+			}
+
+			// Append SERVICE_RESTARTED audit event
+			_ = store.Events().Append(ctx, &models.Event{
+				ID:        id.NewEventID(),
+				Type:      "SERVICE_RESTARTED",
+				Source:    "controlplane",
+				EntityID:  svc.ID,
+				Payload:   fmt.Sprintf(`{"service":"%s","stopped_tasks":%d}`, svc.Name, stoppedCount),
+				CreatedAt: now,
+			})
+
+			// Run reconciliation to reschedule new replacement tasks
+			summary, err := cp.Reconciler.ReconcileAll(ctx)
+			if err != nil {
+				return fmt.Errorf("reconciliation after service restart failed: %w", err)
+			}
+
+			type restartResult struct {
+				ServiceID    id.ID                         `json:"service_id"`
+				ServiceName  string                        `json:"service_name"`
+				StoppedTasks int                           `json:"stopped_tasks"`
+				Summary      controlplane.ReconciliationSummary `json:"summary"`
+				RestartedAt  time.Time                     `json:"restarted_at"`
+			}
+
+			res := restartResult{
+				ServiceID:    svc.ID,
+				ServiceName:  svc.Name,
+				StoppedTasks: stoppedCount,
+				Summary:      *summary,
+				RestartedAt:  now,
+			}
+
+			if jsonOutput {
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(res)
+			}
+
+			fmt.Fprintf(out, "Service '%s' restarted successfully:\n", svc.Name)
+			fmt.Fprintf(out, "  Stopped Tasks:     %d\n", stoppedCount)
+			fmt.Fprintf(out, "  New Tasks Created: %d\n", summary.CreatedTasks)
+			fmt.Fprintf(out, "  Status:            RESTARTED\n")
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output restart result as JSON")
 	return cmd
 }
 

@@ -195,9 +195,54 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
   - [x] **Phase 58**: Metrics Model *([PHASE_58_COMPLETION_REPORT.md](./docs/reports/PHASE_58_COMPLETION_REPORT.md))*
   - [x] **Phase 59**: OpenTelemetry-Compatible Architecture *([PHASE_59_COMPLETION_REPORT.md](./docs/reports/PHASE_59_COMPLETION_REPORT.md))*
   - [x] **Phase 60**: Diagnostics *([PHASE_60_COMPLETION_REPORT.md](./docs/reports/PHASE_60_COMPLETION_REPORT.md))*
-- [ ] **Milestones 17–88**: CLI maturity, DNS resolution, load balancing, security, ingress, multi-node mesh, and release audit.
+- [x] **Milestone 17: CLI Maturity** (Phases 61–63)
+  - [x] **Phase 61**: CLI Command Structure *([PHASE_61_COMPLETION_REPORT.md](./docs/reports/PHASE_61_COMPLETION_REPORT.md))*
+- [ ] **Milestones 18–88**: CLI machine output & ergonomics, DNS resolution, load balancing, security, ingress, multi-node mesh, and release audit.
 
 ---
+
+## Developer CLI Command Matrix
+
+The `cloudx` CLI provides an intuitive, consistent command surface across all core CloudX lifecycle primitives:
+
+```bash
+# Cluster & Workers
+cloudx init                     # Quick cluster initialization
+cloudx status                   # Quick cluster status & node summary
+cloudx cluster init/status/nodes# Comprehensive cluster control plane operations
+cloudx worker start/join/status # Worker lifecycle management
+
+# Services & Deployments
+cloudx deploy [manifest.yaml]   # Deploy service or batch manifest
+cloudx rollback <service>       # Rollback service to previous revision
+cloudx service list             # List registered services
+cloudx service inspect <id>     # Detailed JSON/tabular inspection
+cloudx service scale <id> <n>   # Dynamically scale replica count
+cloudx service restart <id>     # Restart active service instances
+cloudx service logs <id>        # View/stream task logs
+cloudx service endpoints        # List exposed service ports and VIPs
+
+# Jobs
+cloudx job run [job.yaml]       # Run batch or one-off job
+cloudx job list                 # List batch job executions
+cloudx job inspect <id>         # Inspect job execution details
+cloudx job logs <id>            # Fetch job execution output
+
+# Nodes, Volumes & Networks
+cloudx node list                # List registered nodes
+cloudx node drain <id>          # Drain node and migrate tasks
+cloudx volume create/list/inspect/delete  # Persistent storage management
+cloudx network create/list      # Virtual overlay networking
+
+# Observability & Diagnostics
+cloudx events                   # Stream cluster lifecycle audit events
+cloudx diagnose                 # Comprehensive diagnostic health checks
+cloudx metrics show             # In-process metrics inspection
+cloudx otel status/spans/metrics# OpenTelemetry tracing and metric bridging
+```
+
+---
+
 
 ## Observability & Telemetry
 
