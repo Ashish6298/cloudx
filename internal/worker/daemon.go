@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/common/version"
@@ -181,9 +182,26 @@ func (d *Daemon) Start(ctx context.Context) error {
 
 	d.logger.Info("Connecting to CloudX Control Plane at %s...", d.cfg.ControlPlane.Address)
 
-	// Dial Control Plane gRPC
+	// Dial Control Plane gRPC with secure TLS or insecure credentials
+	var credOpt grpc.DialOption = grpc.WithTransportCredentials(insecure.NewCredentials())
+	tlsCfg := d.cfg.Worker.TLS
+	if !tlsCfg.Enabled && d.cfg.TLS.Enabled {
+		tlsCfg = d.cfg.TLS
+	}
+
+	if tlsCfg.Enabled {
+		tlsDialOpt, err := auth.BuildClientCredentials(tlsCfg)
+		if err != nil {
+			d.setStatus(StatusDegraded)
+			d.logger.Error("Failed to build worker TLS credentials: %v", err)
+			return fmt.Errorf("failed to build TLS credentials: %w", err)
+		}
+		credOpt = tlsDialOpt
+		d.logger.Info("Worker connecting using TLS credentials")
+	}
+
 	conn, err := grpc.DialContext(runCtx, d.cfg.ControlPlane.Address,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		credOpt,
 		grpc.WithBlock(),
 	)
 	if err != nil {

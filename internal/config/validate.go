@@ -80,6 +80,25 @@ func (c *Config) Validate() error {
 		})
 	}
 
+	// TLS Configuration validation if enabled
+	validateTLS := func(prefix string, tls TLSConfig) {
+		if tls.Enabled {
+			if strings.TrimSpace(tls.CertFile) == "" && strings.TrimSpace(tls.KeyFile) != "" {
+				errs = append(errs, ValidationError{Field: prefix + ".cert_file", Message: "cert_file is required when key_file is provided"})
+			}
+			if strings.TrimSpace(tls.KeyFile) == "" && strings.TrimSpace(tls.CertFile) != "" {
+				errs = append(errs, ValidationError{Field: prefix + ".key_file", Message: "key_file is required when cert_file is provided"})
+			}
+			if tls.ClientAuth && strings.TrimSpace(tls.CAFile) == "" {
+				errs = append(errs, ValidationError{Field: prefix + ".ca_file", Message: "ca_file is required when client_auth (mTLS) is enabled"})
+			}
+		}
+	}
+
+	validateTLS("tls", c.TLS)
+	validateTLS("control_plane.tls", c.ControlPlane.TLS)
+	validateTLS("worker.tls", c.Worker.TLS)
+
 	if errs.HasErrors() {
 		return errs
 	}

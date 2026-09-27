@@ -420,14 +420,28 @@ cloudx status --verbose
 cloudx deploy -f service.yaml -v
 ```
 
+---
 
+### 6. RPC Security, TLS / mTLS & Secret Protection (Phase 64)
 
+CloudX implements robust transport layer security, cryptographic identity verification, and secret log redaction across the gRPC communication fabric.
 
+#### Transport Layer Security (TLS & mTLS)
+- **Zero-Config Self-Signed Certificates**: CloudX can generate in-memory or on-disk X.509 RSA certificates for encrypted development environments with zero external dependencies.
+- **Mutual TLS (mTLS)**: Enforces bidirectional cryptographic identity verification between worker daemons and the control plane.
+- **Configuration**:
+  ```yaml
+  tls:
+    enabled: true
+    cert_file: "/etc/cloudx/tls/server.crt"
+    key_file: "/etc/cloudx/tls/server.key"
+    ca_file: "/etc/cloudx/tls/ca.crt"
+    client_auth: true # Enforce mTLS client certificate verification
+  ```
 
-
-
-
-
-
-
-
+#### Secret & Token Log Redaction
+CloudX automatically detects and redacts secrets before writing logs to stdout or persistent storage:
+- Bootstrap tokens (`clx-btk-*` $\rightarrow$ `clx-btk-[REDACTED]`)
+- Authorization headers (`Bearer [REDACTED]`)
+- PEM private keys (`-----BEGIN ... PRIVATE KEY-----` $\rightarrow$ `[REDACTED_PRIVATE_KEY]`)
+- Structured sensitive fields (`password`, `token`, `secret`, `private_key`)

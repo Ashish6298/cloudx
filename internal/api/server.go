@@ -11,6 +11,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
+	"github.com/cloudx-org/cloudx/internal/config"
 	"github.com/cloudx-org/cloudx/internal/state"
 	"github.com/cloudx-org/cloudx/internal/state/models"
 	"github.com/cloudx-org/cloudx/internal/state/transitions"
@@ -32,6 +33,7 @@ type Server struct {
 	address        string
 	clusterID      string
 	tokenValidator *auth.TokenValidator
+	tlsConfig      config.TLSConfig
 }
 
 // ServerOptions configures the gRPC server.
@@ -42,6 +44,7 @@ type ServerOptions struct {
 	Logger         logging.Logger
 	BootstrapToken string
 	TokenValidator *auth.TokenValidator
+	TLS            config.TLSConfig
 }
 
 // NewServer creates a new gRPC Server instance.
@@ -72,6 +75,7 @@ func NewServer(opts ServerOptions) (*Server, error) {
 		address:        opts.Address,
 		clusterID:      clusterID,
 		tokenValidator: tv,
+		tlsConfig:      opts.TLS,
 	}
 
 	// Logging & Request ID Interceptor
@@ -92,7 +96,17 @@ func NewServer(opts ServerOptions) (*Server, error) {
 		return resp, err
 	}
 
-	s.grpcServer = grpc.NewServer(grpc.UnaryInterceptor(unaryInterceptor))
+	serverOpts := []grpc.ServerOption{grpc.UnaryInterceptor(unaryInterceptor)}
+	if opts.TLS.Enabled {
+		tlsCredOpt, err := auth.BuildServerCredentials(opts.TLS)
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure TLS credentials for gRPC server: %w", err)
+		}
+		serverOpts = append(serverOpts, tlsCredOpt)
+		s.logger.Info("gRPC TLS enabled (clientAuth: %v)", opts.TLS.ClientAuth)
+	}
+
+	s.grpcServer = grpc.NewServer(serverOpts...)
 	v1.RegisterControlPlaneServiceServer(s.grpcServer, s)
 
 	return s, nil
