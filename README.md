@@ -496,4 +496,27 @@ $$\text{Deploy v1} \longrightarrow \text{Scale Up} \longrightarrow \text{Crash T
 go test -v ./test/integration/...
 ```
 
+---
+
+### 11. Deterministic Failure Testing (Phase 69)
+
+CloudX features a comprehensive automated failure test suite (`test/integration/failure_scenarios_test.go`) validating deterministic fault tolerance, self-healing, and state recovery across 10 critical failure modes:
+
+1. **Worker Crash**: Orphaned tasks on abruptly lost workers are automatically detected by the Reconciler and migrated to surviving healthy nodes.
+2. **Process Crash**: Terminated workloads are caught via process supervision, transitioning tasks to `FAILED` and auto-spawning replacements.
+3. **Control-Plane Restart**: Full state, deployment histories, and task mappings survive abrupt control-plane shutdown and recovery against persistent SQLite storage.
+4. **SQLite Interruption**: Interrupted transactions rollback completely without partial or corrupted state persistence.
+5. **RPC Timeout**: Expired client deadlines fail cleanly with standard gRPC `DeadlineExceeded` without server hangs or goroutine leaks.
+6. **Duplicate Messages**: Worker re-registration and task assignments execute idempotently without throwing `AlreadyExists` or duplicating state.
+7. **Delayed Messages**: Unresponsive workers trigger progressive degradation (`READY` $\rightarrow$ `SUSPECTED` $\rightarrow$ `UNHEALTHY` $\rightarrow$ `LOST`).
+8. **Health Failure**: Faulty probes correctly transition workloads and self-heal upon probe recovery.
+9. **Resource Exhaustion**: Safe in-process resource limits protect cluster stability during memory pressure.
+10. **Worker Reconnection**: Disconnected worker daemons seamlessly reconnect and restore `READY` status using persisted `worker.id`.
+
+```bash
+# Run all failure scenario tests
+go test -v -run TestFailure_ ./test/integration/...
+```
+
+
 
