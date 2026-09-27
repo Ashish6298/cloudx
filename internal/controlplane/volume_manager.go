@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/state/models"
 )
@@ -30,6 +32,11 @@ type VolumeCreateResult struct {
 func (cp *ControlPlane) CreateVolume(ctx context.Context, cfg models.VolumeConfig) (*VolumeCreateResult, error) {
 	if strings.TrimSpace(cfg.Name) == "" {
 		return nil, fmt.Errorf("volume name is required")
+	}
+
+	// Validate volume name against directory traversal or illegal characters
+	if err := auth.ValidateResourceID(cfg.Name); err != nil {
+		return nil, fmt.Errorf("invalid volume name '%s': %w", cfg.Name, err)
 	}
 
 	// Default driver to local
@@ -58,12 +65,27 @@ func (cp *ControlPlane) CreateVolume(ctx context.Context, cfg models.VolumeConfi
 
 	// Resolve volume location: use provided path or default to storage base
 	location := cfg.Location
+	storageBase := cp.cfg.Storage.Path
+	if storageBase == "" {
+		storageBase = "~/.cloudx"
+	}
+
 	if location == "" {
-		storageBase := cp.cfg.Storage.Path
-		if storageBase == "" {
-			storageBase = "~/.cloudx"
-		}
 		location = fmt.Sprintf("%s/volumes/%s", storageBase, cfg.Name)
+	} else {
+		// Reject null bytes or relative path traversal sequences
+		if strings.Contains(location, "\x00") {
+			return nil, fmt.Errorf("volume location contains null bytes")
+		}
+		if !filepath.IsAbs(location) {
+			safeLoc, err := auth.ValidateSafePath(storageBase, location)
+			if err != nil {
+				return nil, fmt.Errorf("volume path traversal violation: %w", err)
+			}
+			location = safeLoc
+		} else {
+			location = filepath.Clean(location)
+		}
 	}
 
 	// Provision the host directory for local/host driver

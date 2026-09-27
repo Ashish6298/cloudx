@@ -166,8 +166,18 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 	if strings.TrimSpace(req.WorkerId) == "" {
 		return nil, status.Error(codes.InvalidArgument, "worker_id must not be empty")
 	}
+	if err := auth.ValidateResourceID(req.WorkerId, id.EntityWorker); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker_id: %v", err)
+	}
+
 	if strings.TrimSpace(req.Address) == "" {
 		return nil, status.Error(codes.InvalidArgument, "worker address must not be empty")
+	}
+
+	if req.NodeId != "" {
+		if err := auth.ValidateResourceID(req.NodeId, id.EntityNode); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid node_id: %v", err)
+		}
 	}
 
 	// 1. Cluster Bootstrap Token and Target Cluster Authentication
@@ -356,9 +366,17 @@ func (s *Server) AssignTask(ctx context.Context, req *v1.TaskAssignmentRequest) 
 	if strings.TrimSpace(req.WorkerId) == "" {
 		return nil, status.Error(codes.InvalidArgument, "worker_id is required")
 	}
+	if err := auth.ValidateResourceID(req.WorkerId, id.EntityWorker); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker_id: %v", err)
+	}
+
 	if req.Task == nil || strings.TrimSpace(req.Task.Id) == "" {
 		return nil, status.Error(codes.InvalidArgument, "task and task.id are required")
 	}
+	if err := auth.ValidateResourceID(req.Task.Id, id.EntityTask); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task.id: %v", err)
+	}
+
 	if strings.TrimSpace(req.Command) == "" {
 		return nil, status.Error(codes.InvalidArgument, "command is required")
 	}
@@ -436,6 +454,12 @@ func (s *Server) AssignTask(ctx context.Context, req *v1.TaskAssignmentRequest) 
 func (s *Server) ReportTaskStatus(ctx context.Context, req *v1.ReportTaskStatusRequest) (*v1.ReportTaskStatusResponse, error) {
 	if strings.TrimSpace(req.WorkerId) == "" || strings.TrimSpace(req.TaskId) == "" {
 		return nil, status.Error(codes.InvalidArgument, "worker_id and task_id must not be empty")
+	}
+	if err := auth.ValidateResourceID(req.WorkerId, id.EntityWorker); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid worker_id: %v", err)
+	}
+	if err := auth.ValidateResourceID(req.TaskId, id.EntityTask); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task_id: %v", err)
 	}
 
 	taskID := id.ID(req.TaskId)

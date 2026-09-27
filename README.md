@@ -458,3 +458,13 @@ CloudX implements universal, multi-layer secret protection across the entire sys
 - **Resource Inspection (`cloudx service inspect`, `cloudx job inspect`)**: Sensitive command-line flags (`--password`, `--token`, `--api-key`) and environment variables (`DATABASE_URL`, `DB_PASSWORD`, `API_KEY`, etc.) are masked as `[REDACTED]` in terminal outputs.
 - **Error Messages (`errors_ux`)**: Formatted developer error messages automatically mask credentials, URLs, and private keys embedded in exception strings or technical stack traces.
 
+---
+
+### 8. Permission Boundaries & Input Validation (Phase 66)
+
+CloudX strictly demarcates execution boundaries and sanitizes all incoming identifiers and file paths:
+
+- **Permission Scopes (`auth.PermissionScope`)**: Distinguishes Control Plane, Worker, and Runtime execution contexts via `auth.EnsureScope`.
+- **Resource ID Sanitization (`auth.ValidateResourceID`)**: Enforces alphanumeric naming rules and rejects illegal characters, null bytes, and traversal tokens (`..`, `/`, `\`, `*`, `?`).
+- **Path Traversal Prevention (`auth.ValidateSafePath`)**: Ensures volume locations and runtime paths cannot escape root storage boundaries.
+

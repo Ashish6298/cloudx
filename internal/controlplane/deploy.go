@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/logs"
 	"github.com/cloudx-org/cloudx/internal/scheduler"
@@ -28,8 +29,17 @@ type DeployResult struct {
 
 // DeployService validates, persists desired service state, rolls out a deployment, and schedules replicas.
 func (cp *ControlPlane) DeployService(ctx context.Context, svcConfig *spec.ServiceConfig, dispatcher scheduler.Dispatcher) (*DeployResult, error) {
+	if err := auth.EnsureScope(ctx, auth.ScopeControlPlane); err != nil {
+		return nil, err
+	}
+
 	if svcConfig == nil {
 		return nil, fmt.Errorf("service configuration is nil")
+	}
+
+	// Validate service name formatting and bounds
+	if err := auth.ValidateResourceID(svcConfig.Name, id.EntityService); err != nil {
+		return nil, fmt.Errorf("invalid service name '%s': %w", svcConfig.Name, err)
 	}
 
 	// 1. Validate Service Configuration

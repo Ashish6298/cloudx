@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 )
 
@@ -51,11 +52,17 @@ func (r *NativeRuntime) Type() string {
 
 // Start spawns a native OS process in the background, continuously capturing stdout & stderr.
 func (r *NativeRuntime) Start(ctx context.Context, spec ProcessSpec) (*ProcessStatus, error) {
+	if err := auth.EnsureScope(ctx, auth.ScopeControlPlane, auth.ScopeWorker, auth.ScopeRuntime); err != nil {
+		return nil, err
+	}
+
 	if spec.Command == "" {
 		return nil, fmt.Errorf("%w: command cannot be empty", ErrInvalidProcessSpec)
 	}
 	if spec.ID == "" {
 		spec.ID = id.NewTaskID()
+	} else if err := auth.ValidateResourceID(spec.ID.String(), id.EntityTask); err != nil {
+		return nil, fmt.Errorf("%w: invalid task process id: %v", ErrInvalidProcessSpec, err)
 	}
 
 	r.mu.Lock()
