@@ -61,7 +61,7 @@ Examples:
 			engine := diagnostics.NewEngine(cfg, store, dbPath)
 			report := engine.Run(ctx)
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(report)

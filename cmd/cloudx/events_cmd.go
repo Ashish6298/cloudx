@@ -152,7 +152,7 @@ Examples:
 
 			out := cmd.OutOrStdout()
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(matchedEvents)

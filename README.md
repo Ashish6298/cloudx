@@ -328,6 +328,56 @@ Phase 60 introduces a single diagnostic tool to identify common CloudX problems 
 8. **Failed Deployments:** Detects degraded services and stalled/halted deployment revisions.
 9. **Resource Pressure:** Evaluates host CPU utilization, memory pressure, and worker capacity exhaustion.
 
+---
+
+### 4. CLI Command Interface & Maturity (Phase 61 & Phase 62)
+
+CloudX features a professional developer interface with human-friendly terminal formatting and machine-readable JSON output for CI/CD, automation scripts, and tooling integrations.
+
+#### Standard Command Surface
+
+| Domain | Command | Description |
+|--------|---------|-------------|
+| **Core** | `cloudx init` / `cloudx status` | Initialize storage/database and inspect overall cluster health |
+| **Cluster** | `cloudx cluster init` / `status` / `nodes` / `token` | Cluster bootstrap token management, health topology, member nodes |
+| **Worker** | `cloudx worker start` / `join` / `status` | Start local worker daemon, join remote cluster, inspect worker list |
+| **Deployment**| `cloudx deploy -f <manifest>` / `cloudx rollback <svc> [ver]` | Declarative service manifests and atomic zero-cost version rollbacks |
+| **Service** | `cloudx service list` / `inspect` / `scale` / `restart` / `endpoints` / `logs` | Service lifecycle, live logs streaming, replica scaling, service discovery |
+| **Job** | `cloudx job run` / `list` / `inspect` / `logs` / `cancel` / `retry` | Batch job execution, failure retries, execution logging, status inspection |
+| **Node** | `cloudx node list` / `drain` | Node topology and zero-downtime worker task evacuation |
+| **Volume** | `cloudx volume create` / `list` / `inspect` / `delete` | Local and host persistent storage mounts for stateful workloads |
+| **Network** | `cloudx network create` / `list` / `inspect` / `delete` | Isolated virtual overlay networking and DNS service discovery |
+| **Explain** | `cloudx task explain <task-id>` | Deterministic scheduler decision rationale and scoring breakdown |
+| **Diagnostics**| `cloudx diagnose` (aliases: `doctor`, `diag`) | 9-vector operational health and sanity inspection |
+
+#### Machine-Readable JSON Output (`--output json` / `-o json`)
+
+All major commands support the standard `--output json` (or `-o json` / `--json`) flag for frictionless integration with CI/CD pipelines, jq filters, automation scripts, and future web dashboards:
+
+```bash
+# Core status & topology
+cloudx status --output json
+cloudx cluster nodes -o json
+cloudx worker status -o json
+cloudx node list --output json
+
+# Workloads & Inspections
+cloudx deploy -f service.yaml --output json
+cloudx service list -o json
+cloudx service inspect api --output json
+cloudx service endpoints --output json
+cloudx job list -o json
+cloudx job inspect migration --output json
+
+# Observability, Events & Diagnostics
+cloudx events --service api --output json
+cloudx diagnose --output json
+cloudx metrics show --output json
+cloudx otel status --output json
+cloudx otel spans --output json
+cloudx otel metrics --output json
+```
+
 
 
 

@@ -83,21 +83,23 @@ Examples:
 				}
 			}
 
+			isJSON := isJSONOutput(cmd, jsonOutput)
+
 			if isServiceVersion {
 				parts := strings.SplitN(targetArg, ":", 2)
 				serviceName := parts[0]
 				targetVersion := parts[1]
 
-				fmt.Fprintf(out, "Deploying version '%s' for service '%s'...\n\n", targetVersion, serviceName)
+				if !isJSON {
+					fmt.Fprintf(out, "Deploying version '%s' for service '%s'...\n\n", targetVersion, serviceName)
+				}
 				res, err := cp.DeployVersion(ctx, serviceName, targetVersion, nil)
 				if err != nil {
 					return fmt.Errorf("versioned deployment failed: %w", err)
 				}
 
-				if jsonOutput {
-					enc := json.NewEncoder(out)
-					enc.SetIndent("", "  ")
-					return enc.Encode(res)
+				if isJSON {
+					return writeJSON(out, res)
 				}
 
 				fmt.Fprintf(out, " [SUCCESS] Service '%s' (ID: %s)\n", res.ServiceName, res.ServiceID)
@@ -126,27 +128,31 @@ Examples:
 				return fmt.Errorf("failed to parse manifest %s: %w", filePath, err)
 			}
 
-			fmt.Fprintf(out, "Deploying services from %s...\n\n", filePath)
+			if !isJSON {
+				fmt.Fprintf(out, "Deploying services from %s...\n\n", filePath)
+			}
 
 			var results []*controlplane.DeployResult
 			for name, svcConfig := range cfgFile.Services {
 				res, err := cp.DeployService(ctx, svcConfig, nil)
 				if err != nil {
-					fmt.Fprintf(out, " [FAILED] Service '%s': %v\n", name, err)
+					if !isJSON {
+						fmt.Fprintf(out, " [FAILED] Service '%s': %v\n", name, err)
+					}
 					continue
 				}
 				results = append(results, res)
 
-				fmt.Fprintf(out, " [SUCCESS] Service '%s' (ID: %s)\n", res.ServiceName, res.ServiceID)
-				fmt.Fprintf(out, "   Replicas: %d/%d assigned\n", len(res.Tasks), res.Replicas)
-				fmt.Fprintf(out, "   Deployment: %s\n", res.DeploymentID)
-				fmt.Fprintf(out, "   Status: %s\n\n", res.Status)
+				if !isJSON {
+					fmt.Fprintf(out, " [SUCCESS] Service '%s' (ID: %s)\n", res.ServiceName, res.ServiceID)
+					fmt.Fprintf(out, "   Replicas: %d/%d assigned\n", len(res.Tasks), res.Replicas)
+					fmt.Fprintf(out, "   Deployment: %s\n", res.DeploymentID)
+					fmt.Fprintf(out, "   Status: %s\n\n", res.Status)
+				}
 			}
 
-			if jsonOutput {
-				enc := json.NewEncoder(out)
-				enc.SetIndent("", "  ")
-				return enc.Encode(results)
+			if isJSON {
+				return writeJSON(out, results)
 			}
 
 			return nil
@@ -201,7 +207,7 @@ func newServiceListCmd() *cobra.Command {
 				return fmt.Errorf("failed to list services: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(services)
@@ -271,7 +277,7 @@ func newServiceInspectCmd() *cobra.Command {
 				return fmt.Errorf("failed to inspect service: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(inspectRes)
@@ -368,7 +374,7 @@ func newServiceScaleCmd() *cobra.Command {
 				return fmt.Errorf("failed to scale service %s: %w", serviceNameOrID, err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
@@ -482,7 +488,7 @@ Examples:
 				RestartedAt:  now,
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
@@ -578,8 +584,9 @@ Examples:
 			}
 
 			// Format and display initial historical entries
+			isJSON := isJSONOutput(cmd, jsonOutput)
 			for _, entry := range entries {
-				printLogEntry(out, entry, jsonOutput)
+				printLogEntry(out, entry, isJSON)
 			}
 
 			// If follow requested, subscribe to live logs
@@ -598,7 +605,7 @@ Examples:
 						if !ok {
 							return nil
 						}
-						printLogEntry(out, entry, jsonOutput)
+						printLogEntry(out, entry, isJSON)
 					}
 				}
 			}
@@ -676,7 +683,7 @@ Examples:
 					return fmt.Errorf("failed to get endpoints for %s: %w", target, err)
 				}
 
-				if jsonOutput {
+				if isJSONOutput(cmd, jsonOutput) {
 					enc := json.NewEncoder(out)
 					enc.SetIndent("", "  ")
 					return enc.Encode(endpoints)
@@ -717,7 +724,7 @@ Examples:
 					return fmt.Errorf("failed to list endpoints in network %s: %w", networkFilter, err)
 				}
 
-				if jsonOutput {
+				if isJSONOutput(cmd, jsonOutput) {
 					enc := json.NewEncoder(out)
 					enc.SetIndent("", "  ")
 					return enc.Encode(endpoints)
@@ -753,7 +760,7 @@ Examples:
 				return fmt.Errorf("failed to list all endpoints: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(allEndpoints)

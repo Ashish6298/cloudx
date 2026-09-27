@@ -60,7 +60,7 @@ func newOtelStatusCmd() *cobra.Command {
 				st.OTLPConfigured = true
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(st)
@@ -119,7 +119,7 @@ func newOtelSpansCmd() *cobra.Command {
 				spans = spans[len(spans)-limit:]
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(spans)
@@ -201,7 +201,7 @@ func newOtelMetricsCmd() *cobra.Command {
 				return fmt.Errorf("failed to bridge metrics to OpenTelemetry format: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(rm)

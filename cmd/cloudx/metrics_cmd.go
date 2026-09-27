@@ -106,15 +106,15 @@ Examples:
 				snap = filtered
 			}
 
-			if jsonOutput {
-				type jsonOutput struct {
+			if isJSONOutput(cmd, jsonOutput) {
+				type jsonMetricsOutput struct {
 					CollectedAt  string               `json:"collected_at"`
 					Summary      *metrics.CollectResult `json:"summary"`
 					Metrics      []metrics.MetricValue  `json:"metrics"`
 				}
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
-				return enc.Encode(jsonOutput{
+				return enc.Encode(jsonMetricsOutput{
 					CollectedAt: time.Now().UTC().Format(time.RFC3339),
 					Summary:     result,
 					Metrics:     snap,

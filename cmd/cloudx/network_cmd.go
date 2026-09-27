@@ -76,7 +76,7 @@ Examples:
 				return fmt.Errorf("failed to create network: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
@@ -125,7 +125,7 @@ func newNetworkListCmd() *cobra.Command {
 				return fmt.Errorf("failed to list networks: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(nets)
@@ -180,7 +180,7 @@ func newNetworkInspectCmd() *cobra.Command {
 				return fmt.Errorf("failed to inspect network: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)

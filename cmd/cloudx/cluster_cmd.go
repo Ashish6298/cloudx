@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -298,7 +297,7 @@ and node-by-node resource utilization.`,
 				}
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				type ClusterStatusJSON struct {
 					ControlPlane string           `json:"control_plane"`
 					Workers      int              `json:"workers"`
@@ -321,9 +320,7 @@ and node-by-node resource utilization.`,
 					Nodes: nodeRows,
 				}
 
-				enc := json.NewEncoder(out)
-				enc.SetIndent("", "  ")
-				return enc.Encode(res)
+				return writeJSON(out, res)
 			}
 
 			// Render Human-readable terminal overview
@@ -358,6 +355,15 @@ and node-by-node resource utilization.`,
 }
 
 func newClusterNodesCmd() *cobra.Command {
+	var jsonOutput bool
+
+	type NodeItemJSON struct {
+		Node    string `json:"node"`
+		Status  string `json:"status"`
+		Address string `json:"address"`
+		Updated string `json:"updated"`
+	}
+
 	cmd := &cobra.Command{
 		Use:   "nodes",
 		Short: "List all nodes in the CloudX cluster",
@@ -368,8 +374,7 @@ func newClusterNodesCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			w := tabwriter.NewWriter(out, 0, 8, 3, ' ', 0)
-			fmt.Fprintln(w, "NODE\tSTATUS\tADDRESS\tUPDATED")
+			var items []NodeItemJSON
 
 			// Try gRPC first with short timeout
 			dialCtx, dialCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -396,34 +401,57 @@ func newClusterNodesCmd() *cobra.Command {
 						if wrk.LastHeartbeat == 0 {
 							updatedTime = "N/A"
 						}
-						fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", nodeName, wrk.Status, wrk.Address, updatedTime)
+						items = append(items, NodeItemJSON{
+							Node:    nodeName,
+							Status:  wrk.Status,
+							Address: wrk.Address,
+							Updated: updatedTime,
+						})
 					}
-					return w.Flush()
 				}
 			}
 
-			// Fallback to local store
-			dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer dbCancel()
+			if len(items) == 0 {
+				// Fallback to local store
+				dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer dbCancel()
 
-			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			store, err := sqlite.Open(dbCtx, dbPath)
-			if err != nil {
-				return fmt.Errorf("failed to query nodes: %w", err)
+				dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+				store, err := sqlite.Open(dbCtx, dbPath)
+				if err != nil {
+					return fmt.Errorf("failed to query nodes: %w", err)
+				}
+				defer store.Close()
+
+				nodes, err := store.Nodes().List(dbCtx)
+				if err != nil {
+					return err
+				}
+
+				for _, n := range nodes {
+					items = append(items, NodeItemJSON{
+						Node:    n.Name,
+						Status:  n.Status,
+						Address: n.Address,
+						Updated: n.UpdatedAt.Format("15:04:05"),
+					})
+				}
 			}
-			defer store.Close()
 
-			nodes, err := store.Nodes().List(dbCtx)
-			if err != nil {
-				return err
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, items)
 			}
 
-			for _, n := range nodes {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", n.Name, n.Status, n.Address, n.UpdatedAt.Format("15:04:05"))
+			w := tabwriter.NewWriter(out, 0, 8, 3, ' ', 0)
+			fmt.Fprintln(w, "NODE\tSTATUS\tADDRESS\tUPDATED")
+			for _, item := range items {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", item.Node, item.Status, item.Address, item.Updated)
 			}
-
 			return w.Flush()
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output cluster nodes in JSON format")
 	return cmd
 }
+

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -33,6 +32,7 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.PersistentFlags().StringVar(&cliOpts.ControlPlaneAddr, "control-plane-addr", "", "Override Control Plane address (host:port)")
 	cmd.PersistentFlags().StringVar(&cliOpts.StoragePath, "storage-path", "", "Override Storage persistence path")
 	cmd.PersistentFlags().StringVar(&cliOpts.LogLevel, "log-level", "", "Override Logging level (debug, info, warn, error)")
+	cmd.PersistentFlags().StringVarP(&globalOutputFormat, "output", "o", "", "Output format (text, json, table)")
 
 	cmd.AddCommand(newVersionCmd())
 	cmd.AddCommand(newConfigCmd())
@@ -81,10 +81,8 @@ func newVersionCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			info := version.Get()
 			out := cmd.OutOrStdout()
-			if jsonOutput {
-				enc := json.NewEncoder(out)
-				enc.SetIndent("", "  ")
-				return enc.Encode(info)
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, info)
 			}
 			fmt.Fprintln(out, info.String())
 			return nil
@@ -119,10 +117,8 @@ func newConfigShowCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if jsonOutput {
-				enc := json.NewEncoder(out)
-				enc.SetIndent("", "  ")
-				return enc.Encode(cfg)
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, cfg)
 			}
 
 			fmt.Fprintf(out, "Node ID:             %s\n", cfg.Node.ID)

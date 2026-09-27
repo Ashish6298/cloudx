@@ -256,7 +256,7 @@ Examples:
 				explanation.ScoreDetails = fmt.Sprintf("Score: %.2f", recordedScore)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(explanation)

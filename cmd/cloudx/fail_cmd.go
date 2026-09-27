@@ -62,7 +62,7 @@ func newFailKillProcessCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
@@ -111,7 +111,7 @@ func newFailStopWorkerCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
@@ -162,7 +162,7 @@ func newFailBreakHealthCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
@@ -214,7 +214,7 @@ func newFailDelayHeartbeatCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
@@ -266,7 +266,7 @@ func newFailExhaustResourcesCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)

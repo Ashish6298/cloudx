@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -199,10 +198,8 @@ Examples:
 				return fmt.Errorf("job execution failed: %w", err)
 			}
 
-			if jsonOutput {
-				b, _ := json.MarshalIndent(result, "", "  ")
-				fmt.Fprintln(out, string(b))
-				return nil
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, result)
 			}
 
 			fmt.Fprintf(out, "Job '%s' submitted successfully!\n\n", result.JobName)
@@ -270,7 +267,7 @@ func newJobListCmd() *cobra.Command {
 				return fmt.Errorf("failed to list jobs: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				var records []*models.JobRecord
 				for _, j := range jobs {
 					rec, _ := models.JobFromModel(j)
@@ -278,9 +275,7 @@ func newJobListCmd() *cobra.Command {
 						records = append(records, rec)
 					}
 				}
-				b, _ := json.MarshalIndent(records, "", "  ")
-				fmt.Fprintln(out, string(b))
-				return nil
+				return writeJSON(out, records)
 			}
 
 			if len(jobs) == 0 {
@@ -359,10 +354,8 @@ func newJobInspectCmd() *cobra.Command {
 				return err
 			}
 
-			if jsonOutput {
-				b, _ := json.MarshalIndent(result, "", "  ")
-				fmt.Fprintln(out, string(b))
-				return nil
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, result)
 			}
 
 			j := result.Job
@@ -618,10 +611,8 @@ func newJobRetryCmd() *cobra.Command {
 				return fmt.Errorf("failed to retry job: %w", err)
 			}
 
-			if jsonOutput {
-				b, _ := json.MarshalIndent(result, "", "  ")
-				fmt.Fprintln(out, string(b))
-				return nil
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, result)
 			}
 
 			fmt.Fprintf(out, "Job '%s' retry scheduled successfully (Task ID: %s, Worker: %s)\n",
