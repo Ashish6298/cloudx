@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/state"
@@ -102,6 +103,9 @@ func (r *Recorder) Record(ctx context.Context, eventType string, source string, 
 			}
 		}
 	}
+
+	// Mask any sensitive credentials, tokens, or environment secrets in the event payload
+	payloadStr = auth.RedactJSONPayload(payloadStr)
 
 	event := &models.Event{
 		ID:        id.NewEventID(),

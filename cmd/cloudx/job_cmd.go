@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
 	"github.com/cloudx-org/cloudx/internal/controlplane"
@@ -362,9 +363,17 @@ func newJobInspectCmd() *cobra.Command {
 			fmt.Fprintf(out, "Job: %s\n", j.Name)
 			fmt.Fprintf(out, "  ID:            %s\n", j.ID)
 			fmt.Fprintf(out, "  State:         %s\n", j.State)
-			fmt.Fprintf(out, "  Command:       %s\n", j.Config.Command)
+			fmt.Fprintf(out, "  Command:       %s\n", auth.RedactString(j.Config.Command))
 			if len(j.Config.Args) > 0 {
-				fmt.Fprintf(out, "  Args:          %s\n", strings.Join(j.Config.Args, " "))
+				redactedArgs := auth.RedactCommandArgs(j.Config.Args)
+				fmt.Fprintf(out, "  Args:          %s\n", strings.Join(redactedArgs, " "))
+			}
+			if len(j.Config.Environment) > 0 {
+				fmt.Fprintln(out, "  Environment:")
+				redactedEnv := auth.RedactEnvironmentVariables(j.Config.Environment)
+				for k, v := range redactedEnv {
+					fmt.Fprintf(out, "    - %s: %s\n", k, v)
+				}
 			}
 			fmt.Fprintf(out, "  Runtime:       %s\n", j.Config.Runtime)
 			fmt.Fprintf(out, "  Config Hash:   %s\n", j.ConfigHash)

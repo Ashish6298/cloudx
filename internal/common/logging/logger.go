@@ -5,47 +5,21 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
-)
 
-var (
-	// Redaction patterns for sensitive credentials, bootstrap tokens, and private keys
-	bootstrapTokenRegex = regexp.MustCompile(`clx-btk-[a-zA-Z0-9_-]+`)
-	bearerTokenRegex    = regexp.MustCompile(`(?i)(bearer\s+)[a-zA-Z0-9_\-\.]+`)
-	pemPrivateKeyRegex  = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----`)
-	secretKeyValueRegex = regexp.MustCompile(`(?i)(password|secret|token|api_key|private_key|authorization)\s*[:=]\s*["']?([^"'\s,;]+)["']?`)
+	"github.com/cloudx-org/cloudx/internal/auth"
 )
 
 // RedactSecrets scans a text string and masks any detected credentials, tokens, or private keys.
 func RedactSecrets(input string) string {
-	if input == "" {
-		return input
-	}
-	out := pemPrivateKeyRegex.ReplaceAllString(input, "[REDACTED_PRIVATE_KEY]")
-	out = bootstrapTokenRegex.ReplaceAllString(out, "clx-btk-[REDACTED]")
-	out = bearerTokenRegex.ReplaceAllString(out, "${1}[REDACTED]")
-	out = secretKeyValueRegex.ReplaceAllString(out, "${1}=[REDACTED]")
-	return out
+	return auth.RedactString(input)
 }
 
 // RedactField returns a redacted representation if the key implies secret/credential content.
 func RedactField(key string, value any) any {
-	lower := strings.ToLower(key)
-	if strings.Contains(lower, "password") ||
-		strings.Contains(lower, "token") ||
-		strings.Contains(lower, "secret") ||
-		strings.Contains(lower, "private_key") ||
-		strings.Contains(lower, "auth") {
-		return "[REDACTED]"
-	}
-
-	if strVal, ok := value.(string); ok {
-		return RedactSecrets(strVal)
-	}
-	return value
+	return auth.RedactValue(key, value)
 }
 
 // Level defines logging severity.

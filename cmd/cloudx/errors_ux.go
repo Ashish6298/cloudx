@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	clxerrors "github.com/cloudx-org/cloudx/internal/common/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,35 +36,39 @@ func FormatError(err error, endpoint string, verbose bool) string {
 	det := AnalyzeError(err, endpoint)
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("%s\n", det.Title))
+	sb.WriteString(fmt.Sprintf("%s\n", auth.RedactString(det.Title)))
 
 	if det.Endpoint != "" {
-		sb.WriteString(fmt.Sprintf("\nEndpoint:\n%s\n", det.Endpoint))
+		sb.WriteString(fmt.Sprintf("\nEndpoint:\n%s\n", auth.RedactString(det.Endpoint)))
 	}
 
 	if len(det.Metadata) > 0 {
 		sb.WriteString("\nContext:\n")
 		for k, v := range det.Metadata {
-			sb.WriteString(fmt.Sprintf("- %s: %s\n", k, v))
+			if auth.IsSensitiveKey(k) {
+				sb.WriteString(fmt.Sprintf("- %s: [REDACTED]\n", k))
+			} else {
+				sb.WriteString(fmt.Sprintf("- %s: %s\n", k, auth.RedactString(v)))
+			}
 		}
 	}
 
 	if len(det.PossibleCauses) > 0 {
 		sb.WriteString("\nPossible causes:\n")
 		for _, cause := range det.PossibleCauses {
-			sb.WriteString(fmt.Sprintf("- %s\n", cause))
+			sb.WriteString(fmt.Sprintf("- %s\n", auth.RedactString(cause)))
 		}
 	}
 
 	if len(det.Remediations) > 0 {
 		sb.WriteString("\nSuggested actions:\n")
 		for _, rem := range det.Remediations {
-			sb.WriteString(fmt.Sprintf("- %s\n", rem))
+			sb.WriteString(fmt.Sprintf("- %s\n", auth.RedactString(rem)))
 		}
 	}
 
 	if verbose && det.TechnicalError != "" {
-		sb.WriteString(fmt.Sprintf("\nTechnical details (--verbose):\n%s\n", det.TechnicalError))
+		sb.WriteString(fmt.Sprintf("\nTechnical details (--verbose):\n%s\n", auth.RedactString(det.TechnicalError)))
 	} else if !verbose && det.TechnicalError != "" {
 		sb.WriteString("\n(Provide technical details under: --verbose)\n")
 	}

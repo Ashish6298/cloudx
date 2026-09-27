@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
@@ -189,7 +190,7 @@ Examples:
 	return cmd
 }
 
-// formatEventPayload produces a concise string from JSON payload for CLI display.
+// formatEventPayload produces a concise string from JSON payload for CLI display with secrets redacted.
 func formatEventPayload(payload string) string {
 	if strings.TrimSpace(payload) == "" {
 		return "-"
@@ -197,12 +198,16 @@ func formatEventPayload(payload string) string {
 
 	var m map[string]any
 	if err := json.Unmarshal([]byte(payload), &m); err != nil {
-		return payload
+		return auth.RedactString(payload)
 	}
 
 	var parts []string
 	for k, v := range m {
-		parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		if auth.IsSensitiveKey(k) {
+			parts = append(parts, fmt.Sprintf("%s=[REDACTED]", k))
+		} else {
+			parts = append(parts, fmt.Sprintf("%s=%v", k, auth.RedactValue(k, v)))
+		}
 	}
 	sort.Strings(parts)
 	return strings.Join(parts, " ")

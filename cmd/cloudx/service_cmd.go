@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
@@ -290,7 +291,26 @@ func newServiceInspectCmd() *cobra.Command {
 			fmt.Fprintf(out, "  Status:      %s\n", svc.Status)
 			fmt.Fprintf(out, "  Replicas:    %d\n", svc.Replicas)
 			fmt.Fprintf(out, "  Runtime:     %s\n", svc.Runtime)
-			fmt.Fprintf(out, "  Command:     %s\n", svc.Command)
+			fmt.Fprintf(out, "  Command:     %s\n", auth.RedactString(svc.Command))
+
+			// Parse embedded spec_json to display args and env
+			if svc.SpecJSON != "" {
+				var specCfg spec.ServiceConfig
+				if err := json.Unmarshal([]byte(svc.SpecJSON), &specCfg); err == nil {
+					if len(specCfg.Args) > 0 {
+						redactedArgs := auth.RedactCommandArgs(specCfg.Args)
+						fmt.Fprintf(out, "  Args:        %s\n", strings.Join(redactedArgs, " "))
+					}
+					if len(specCfg.Environment) > 0 {
+						fmt.Fprintln(out, "  Environment:")
+						redactedEnv := auth.RedactEnvironmentVariables(specCfg.Environment)
+						for k, v := range redactedEnv {
+							fmt.Fprintf(out, "    - %s: %s\n", k, v)
+						}
+					}
+				}
+			}
+
 			fmt.Fprintf(out, "  Created:     %s\n", svc.CreatedAt.Format(time.RFC3339))
 			fmt.Fprintf(out, "  Updated:     %s\n\n", svc.UpdatedAt.Format(time.RFC3339))
 

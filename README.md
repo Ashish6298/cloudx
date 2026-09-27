@@ -445,3 +445,16 @@ CloudX automatically detects and redacts secrets before writing logs to stdout o
 - Authorization headers (`Bearer [REDACTED]`)
 - PEM private keys (`-----BEGIN ... PRIVATE KEY-----` $\rightarrow$ `[REDACTED_PRIVATE_KEY]`)
 - Structured sensitive fields (`password`, `token`, `secret`, `private_key`)
+
+---
+
+### 7. Universal Secret Redaction & Protection (Phase 65)
+
+CloudX implements universal, multi-layer secret protection across the entire system to prevent accidental credential leakage in logs, persistent events, CLI output, and error messages.
+
+#### Redaction Domains
+- **Application Logs (`internal/common/logging`)**: All text messages and structured log fields undergo automatic credential sanitization.
+- **Cluster Events (`internal/events`)**: Event payloads with sensitive keys, database URLs, and API tokens are sanitized before SQLite persistence and during `cloudx events` CLI display.
+- **Resource Inspection (`cloudx service inspect`, `cloudx job inspect`)**: Sensitive command-line flags (`--password`, `--token`, `--api-key`) and environment variables (`DATABASE_URL`, `DB_PASSWORD`, `API_KEY`, etc.) are masked as `[REDACTED]` in terminal outputs.
+- **Error Messages (`errors_ux`)**: Formatted developer error messages automatically mask credentials, URLs, and private keys embedded in exception strings or technical stack traces.
+

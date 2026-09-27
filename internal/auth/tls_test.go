@@ -1,4 +1,4 @@
-package auth
+package auth_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
 	v1 "github.com/cloudx-org/cloudx/proto/v1"
@@ -27,7 +28,7 @@ func (m *mockCPService) RegisterWorker(ctx context.Context, req *v1.RegisterWork
 }
 
 func TestGenerateSelfSignedCert(t *testing.T) {
-	certPair, err := GenerateSelfSignedCert("127.0.0.1", "localhost")
+	certPair, err := auth.GenerateSelfSignedCert("127.0.0.1", "localhost")
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedCert failed: %v", err)
 	}
@@ -38,7 +39,7 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 
 func TestTLSHandshake_SelfSigned(t *testing.T) {
 	// 1. Generate in-memory self-signed cert pair
-	certPair, err := GenerateSelfSignedCert("127.0.0.1", "localhost")
+	certPair, err := auth.GenerateSelfSignedCert("127.0.0.1", "localhost")
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedCert failed: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestTLSHandshake_SelfSigned(t *testing.T) {
 		KeyFile:  keyFile,
 	}
 
-	serverCredOpt, err := BuildServerCredentials(serverTLSCfg)
+	serverCredOpt, err := auth.BuildServerCredentials(serverTLSCfg)
 	if err != nil {
 		t.Fatalf("BuildServerCredentials failed: %v", err)
 	}
@@ -86,7 +87,7 @@ func TestTLSHandshake_SelfSigned(t *testing.T) {
 		ServerNameOverride: "localhost",
 	}
 
-	clientCredOpt, err := BuildClientCredentials(clientTLSCfg)
+	clientCredOpt, err := auth.BuildClientCredentials(clientTLSCfg)
 	if err != nil {
 		t.Fatalf("BuildClientCredentials failed: %v", err)
 	}
@@ -115,7 +116,7 @@ func TestTLSHandshake_SelfSigned(t *testing.T) {
 
 func TestMTLS_MutualAuthentication(t *testing.T) {
 	// Generate root CA / server cert
-	caPair, err := GenerateSelfSignedCert("127.0.0.1", "localhost")
+	caPair, err := auth.GenerateSelfSignedCert("127.0.0.1", "localhost")
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedCert failed: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestMTLS_MutualAuthentication(t *testing.T) {
 	_ = os.WriteFile(serverKeyFile, caPair.KeyPEM, 0600)
 
 	// Generate client cert signed or self-signed with common CA
-	clientPair, err := GenerateSelfSignedCert("worker-client", "localhost")
+	clientPair, err := auth.GenerateSelfSignedCert("worker-client", "localhost")
 	if err != nil {
 		t.Fatalf("GenerateSelfSignedCert for client failed: %v", err)
 	}
@@ -148,7 +149,7 @@ func TestMTLS_MutualAuthentication(t *testing.T) {
 		ClientAuth: true,
 	}
 
-	serverCredOpt, err := BuildServerCredentials(serverTLSCfg)
+	serverCredOpt, err := auth.BuildServerCredentials(serverTLSCfg)
 	if err != nil {
 		t.Fatalf("BuildServerCredentials with client auth failed: %v", err)
 	}
@@ -172,7 +173,7 @@ func TestMTLS_MutualAuthentication(t *testing.T) {
 		CAFile:             serverCertFile,
 		ServerNameOverride: "localhost",
 	}
-	insecureCredOpt, err := BuildClientCredentials(insecureClientTLSCfg)
+	insecureCredOpt, err := auth.BuildClientCredentials(insecureClientTLSCfg)
 	if err != nil {
 		t.Fatalf("BuildClientCredentials failed: %v", err)
 	}
@@ -197,7 +198,7 @@ func TestMTLS_MutualAuthentication(t *testing.T) {
 		CAFile:             serverCertFile,
 		ServerNameOverride: "localhost",
 	}
-	validCredOpt, err := BuildClientCredentials(validClientTLSCfg)
+	validCredOpt, err := auth.BuildClientCredentials(validClientTLSCfg)
 	if err != nil {
 		t.Fatalf("BuildClientCredentials with client cert failed: %v", err)
 	}
