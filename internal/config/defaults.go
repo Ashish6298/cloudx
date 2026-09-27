@@ -54,5 +54,10 @@ func NewDefaultConfig() *Config {
 		Logging: LoggingConfig{
 			Level: DefaultLogLevel,
 		},
+		Telemetry: TelemetryConfig{
+			ServiceName:    "cloudx",
+			BufferCapacity: 512,
+			Disabled:       false,
+		},
 	}
 }

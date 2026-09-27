@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -16,7 +15,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cliOpts config.CLIOptions
+var (
+	cliOpts    config.CLIOptions
+	cliVerbose bool
+)
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -24,6 +26,8 @@ func newRootCmd() *cobra.Command {
 		Short: "CloudX is a local-first private cloud runtime & developer infrastructure platform",
 		Long: `CloudX provides compute, service, and job orchestration across one or more machines
 with desired-state reconciliation, deterministic scheduling, and self-healing.`,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	// Global Persistent Flags for Configuration Overrides
@@ -33,12 +37,15 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.PersistentFlags().StringVar(&cliOpts.ControlPlaneAddr, "control-plane-addr", "", "Override Control Plane address (host:port)")
 	cmd.PersistentFlags().StringVar(&cliOpts.StoragePath, "storage-path", "", "Override Storage persistence path")
 	cmd.PersistentFlags().StringVar(&cliOpts.LogLevel, "log-level", "", "Override Logging level (debug, info, warn, error)")
+	cmd.PersistentFlags().StringVarP(&globalOutputFormat, "output", "o", "", "Output format (text, json, table)")
+	cmd.PersistentFlags().BoolVarP(&cliVerbose, "verbose", "v", false, "Enable verbose output and raw technical error details")
 
 	cmd.AddCommand(newVersionCmd())
 	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newStatusCmd())
 	cmd.AddCommand(newServerCmd())
 	cmd.AddCommand(newClusterCmd())
-	cmd.AddCommand(newClusterStatusCmd())
 	cmd.AddCommand(newWorkerCmd())
 	cmd.AddCommand(newDeployCmd())
 	cmd.AddCommand(newDeploymentCmd())
@@ -50,8 +57,25 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.AddCommand(newNetworkCmd())
 	cmd.AddCommand(newNodeCmd())
 	cmd.AddCommand(newTaskCmd())
+	cmd.AddCommand(newMetricsCmd())
+	cmd.AddCommand(newOtelCmd())
+	cmd.AddCommand(newDiagnoseCmd())
 	cmd.AddCommand(newFailCmd())
 	return cmd
+}
+
+func newInitCmd() *cobra.Command {
+	initCmd := newClusterInitCmd()
+	initCmd.Use = "init"
+	initCmd.Short = "Initialize CloudX local cluster storage and configuration (alias for 'cloudx cluster init')"
+	return initCmd
+}
+
+func newStatusCmd() *cobra.Command {
+	statusCmd := newClusterStatusCmd()
+	statusCmd.Use = "status"
+	statusCmd.Short = "Display CloudX cluster health, topology, and summary statistics"
+	return statusCmd
 }
 
 func newVersionCmd() *cobra.Command {
@@ -63,10 +87,8 @@ func newVersionCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			info := version.Get()
 			out := cmd.OutOrStdout()
-			if jsonOutput {
-				enc := json.NewEncoder(out)
-				enc.SetIndent("", "  ")
-				return enc.Encode(info)
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, info)
 			}
 			fmt.Fprintln(out, info.String())
 			return nil
@@ -101,10 +123,8 @@ func newConfigShowCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if jsonOutput {
-				enc := json.NewEncoder(out)
-				enc.SetIndent("", "  ")
-				return enc.Encode(cfg)
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, cfg)
 			}
 
 			fmt.Fprintf(out, "Node ID:             %s\n", cfg.Node.ID)
@@ -185,7 +205,13 @@ func newServerCmd() *cobra.Command {
 func main() {
 	rootCmd := newRootCmd()
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		endpoint := cliOpts.ControlPlaneAddr
+		if endpoint == "" {
+			if cfg, loadErr := config.Load(cliOpts); loadErr == nil && cfg.ControlPlane.Address != "" {
+				endpoint = cfg.ControlPlane.Address
+			}
+		}
+		PrintError(os.Stderr, err, endpoint, cliVerbose)
 		os.Exit(1)
 	}
 }

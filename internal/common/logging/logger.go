@@ -8,7 +8,19 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cloudx-org/cloudx/internal/auth"
 )
+
+// RedactSecrets scans a text string and masks any detected credentials, tokens, or private keys.
+func RedactSecrets(input string) string {
+	return auth.RedactString(input)
+}
+
+// RedactField returns a redacted representation if the key implies secret/credential content.
+func RedactField(key string, value any) any {
+	return auth.RedactValue(key, value)
+}
 
 // Level defines logging severity.
 type Level int
@@ -133,14 +145,14 @@ func (l *defaultLogger) clone() *defaultLogger {
 
 func (l *defaultLogger) With(key string, value any) Logger {
 	cp := l.clone()
-	cp.fields[key] = value
+	cp.fields[key] = RedactField(key, value)
 	return cp
 }
 
 func (l *defaultLogger) WithFields(fields map[string]any) Logger {
 	cp := l.clone()
 	for k, v := range fields {
-		cp.fields[k] = v
+		cp.fields[k] = RedactField(k, v)
 	}
 	return cp
 }
@@ -200,6 +212,9 @@ func (l *defaultLogger) log(level Level, msg string, args ...any) {
 	if len(args) > 0 {
 		formattedMsg = fmt.Sprintf(msg, args...)
 	}
+
+	// Mask any sensitive tokens/credentials in the message
+	formattedMsg = RedactSecrets(formattedMsg)
 
 	entry := LogEntry{
 		Timestamp: time.Now().UTC().Format(time.RFC3339Nano),

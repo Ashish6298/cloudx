@@ -106,7 +106,7 @@ Examples:
 				return fmt.Errorf("failed to create volume: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(result)
@@ -159,7 +159,7 @@ func newVolumeListCmd() *cobra.Command {
 				return fmt.Errorf("failed to list volumes: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(vols)
@@ -227,7 +227,7 @@ Examples:
 				return fmt.Errorf("failed to inspect volume: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(result)

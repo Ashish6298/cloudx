@@ -138,6 +138,16 @@ Example:
 }
 
 func newWorkerStatusCmd() *cobra.Command {
+	var jsonOutput bool
+
+	type WorkerItemJSON struct {
+		Node          string `json:"node"`
+		WorkerID      string `json:"worker_id"`
+		Status        string `json:"status"`
+		Address       string `json:"address"`
+		LastHeartbeat string `json:"last_heartbeat"`
+	}
+
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Display status and resource telemetry of cluster workers",
@@ -166,14 +176,7 @@ func newWorkerStatusCmd() *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			w := tabwriter.NewWriter(out, 0, 8, 3, ' ', 0)
-			fmt.Fprintln(w, "NODE\tSTATUS\tADDRESS\tLAST_HEARTBEAT")
-
-			if len(resp.Workers) == 0 {
-				fmt.Fprintln(out, "No workers registered in cluster.")
-				return nil
-			}
-
+			var items []WorkerItemJSON
 			for _, wrk := range resp.Workers {
 				nodeName := wrk.NodeId
 				if nodeName == "" {
@@ -184,11 +187,34 @@ func newWorkerStatusCmd() *cobra.Command {
 					elapsed := time.Since(time.Unix(wrk.LastHeartbeat, 0))
 					hbStr = fmt.Sprintf("%s ago", elapsed.Round(time.Second))
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", nodeName, strings.ToUpper(wrk.Status), wrk.Address, hbStr)
+				items = append(items, WorkerItemJSON{
+					Node:          nodeName,
+					WorkerID:      wrk.Id,
+					Status:        strings.ToUpper(wrk.Status),
+					Address:       wrk.Address,
+					LastHeartbeat: hbStr,
+				})
+			}
+
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, items)
+			}
+
+			if len(items) == 0 {
+				fmt.Fprintln(out, "No workers registered in cluster.")
+				return nil
+			}
+
+			w := tabwriter.NewWriter(out, 0, 8, 3, ' ', 0)
+			fmt.Fprintln(w, "NODE\tSTATUS\tADDRESS\tLAST_HEARTBEAT")
+			for _, item := range items {
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", item.Node, item.Status, item.Address, item.LastHeartbeat)
 			}
 
 			return w.Flush()
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output worker status in JSON format")
 	return cmd
 }

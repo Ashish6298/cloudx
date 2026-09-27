@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
 	"github.com/cloudx-org/cloudx/internal/controlplane"
@@ -199,10 +199,8 @@ Examples:
 				return fmt.Errorf("job execution failed: %w", err)
 			}
 
-			if jsonOutput {
-				b, _ := json.MarshalIndent(result, "", "  ")
-				fmt.Fprintln(out, string(b))
-				return nil
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, result)
 			}
 
 			fmt.Fprintf(out, "Job '%s' submitted successfully!\n\n", result.JobName)
@@ -270,7 +268,7 @@ func newJobListCmd() *cobra.Command {
 				return fmt.Errorf("failed to list jobs: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				var records []*models.JobRecord
 				for _, j := range jobs {
 					rec, _ := models.JobFromModel(j)
@@ -278,9 +276,7 @@ func newJobListCmd() *cobra.Command {
 						records = append(records, rec)
 					}
 				}
-				b, _ := json.MarshalIndent(records, "", "  ")
-				fmt.Fprintln(out, string(b))
-				return nil
+				return writeJSON(out, records)
 			}
 
 			if len(jobs) == 0 {
@@ -359,19 +355,25 @@ func newJobInspectCmd() *cobra.Command {
 				return err
 			}
 
-			if jsonOutput {
-				b, _ := json.MarshalIndent(result, "", "  ")
-				fmt.Fprintln(out, string(b))
-				return nil
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, result)
 			}
 
 			j := result.Job
 			fmt.Fprintf(out, "Job: %s\n", j.Name)
 			fmt.Fprintf(out, "  ID:            %s\n", j.ID)
 			fmt.Fprintf(out, "  State:         %s\n", j.State)
-			fmt.Fprintf(out, "  Command:       %s\n", j.Config.Command)
+			fmt.Fprintf(out, "  Command:       %s\n", auth.RedactString(j.Config.Command))
 			if len(j.Config.Args) > 0 {
-				fmt.Fprintf(out, "  Args:          %s\n", strings.Join(j.Config.Args, " "))
+				redactedArgs := auth.RedactCommandArgs(j.Config.Args)
+				fmt.Fprintf(out, "  Args:          %s\n", strings.Join(redactedArgs, " "))
+			}
+			if len(j.Config.Environment) > 0 {
+				fmt.Fprintln(out, "  Environment:")
+				redactedEnv := auth.RedactEnvironmentVariables(j.Config.Environment)
+				for k, v := range redactedEnv {
+					fmt.Fprintf(out, "    - %s: %s\n", k, v)
+				}
 			}
 			fmt.Fprintf(out, "  Runtime:       %s\n", j.Config.Runtime)
 			fmt.Fprintf(out, "  Config Hash:   %s\n", j.ConfigHash)
@@ -618,10 +620,8 @@ func newJobRetryCmd() *cobra.Command {
 				return fmt.Errorf("failed to retry job: %w", err)
 			}
 
-			if jsonOutput {
-				b, _ := json.MarshalIndent(result, "", "  ")
-				fmt.Fprintln(out, string(b))
-				return nil
+			if isJSONOutput(cmd, jsonOutput) {
+				return writeJSON(out, result)
 			}
 
 			fmt.Fprintf(out, "Job '%s' retry scheduled successfully (Task ID: %s, Worker: %s)\n",

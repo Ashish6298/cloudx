@@ -789,3 +789,82 @@ func TestCLI_ClusterInitAndToken(t *testing.T) {
 		t.Fatalf("expected bootstrap token starting with 'clx-btk-', got %q", tokenOut)
 	}
 }
+
+func TestPhase61_CLIStructure(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// 1. Verify `cloudx init` (root alias)
+	initCmd := newRootCmd()
+	initBuf := new(bytes.Buffer)
+	initCmd.SetOut(initBuf)
+	initCmd.SetErr(initBuf)
+	initCmd.SetArgs([]string{"--storage-path", tempDir, "init"})
+	if err := initCmd.Execute(); err != nil {
+		t.Fatalf("cloudx init root alias failed: %v", err)
+	}
+	if !strings.Contains(initBuf.String(), "initialized successfully") {
+		t.Fatalf("expected initialization success from cloudx init, got: %s", initBuf.String())
+	}
+
+	// 2. Verify `cloudx status` (root alias)
+	statusCmd := newRootCmd()
+	statusBuf := new(bytes.Buffer)
+	statusCmd.SetOut(statusBuf)
+	statusCmd.SetErr(statusBuf)
+	statusCmd.SetArgs([]string{"--storage-path", tempDir, "status"})
+	if err := statusCmd.Execute(); err != nil {
+		t.Fatalf("cloudx status root alias failed: %v", err)
+	}
+	if !strings.Contains(statusBuf.String(), "CLOUDX CLUSTER") {
+		t.Fatalf("expected cluster status from cloudx status, got: %s", statusBuf.String())
+	}
+
+	// 3. Deploy a service and test `cloudx service restart`
+	manifestContent := `
+version: "v1"
+services:
+  cache-svc:
+    command: python3 -m http.server 9090
+    replicas: 1
+    runtime: native
+`
+	manifestPath := filepath.Join(tempDir, "cache.yaml")
+	if err := os.WriteFile(manifestPath, []byte(manifestContent), 0644); err != nil {
+		t.Fatalf("failed to write manifest: %v", err)
+	}
+
+	deployCmd := newRootCmd()
+	deployBuf := new(bytes.Buffer)
+	deployCmd.SetOut(deployBuf)
+	deployCmd.SetErr(deployBuf)
+	deployCmd.SetArgs([]string{"--storage-path", tempDir, "deploy", "-f", manifestPath})
+	if err := deployCmd.Execute(); err != nil {
+		t.Fatalf("deploy failed: %v", err)
+	}
+
+	// Test `cloudx service restart cache-svc`
+	restartCmd := newRootCmd()
+	restartBuf := new(bytes.Buffer)
+	restartCmd.SetOut(restartBuf)
+	restartCmd.SetErr(restartBuf)
+	restartCmd.SetArgs([]string{"--storage-path", tempDir, "service", "restart", "cache-svc"})
+	if err := restartCmd.Execute(); err != nil {
+		t.Fatalf("service restart failed: %v", err)
+	}
+	if !strings.Contains(restartBuf.String(), "restarted successfully") {
+		t.Fatalf("expected restart success output, got: %s", restartBuf.String())
+	}
+
+	// Test `cloudx service restart cache-svc --json`
+	restartJSONCmd := newRootCmd()
+	restartJSONBuf := new(bytes.Buffer)
+	restartJSONCmd.SetOut(restartJSONBuf)
+	restartJSONCmd.SetErr(restartJSONBuf)
+	restartJSONCmd.SetArgs([]string{"--storage-path", tempDir, "service", "restart", "cache-svc", "--json"})
+	if err := restartJSONCmd.Execute(); err != nil {
+		t.Fatalf("service restart --json failed: %v", err)
+	}
+	if !strings.Contains(restartJSONBuf.String(), `"service_name": "cache-svc"`) {
+		t.Fatalf("expected json restart result, got: %s", restartJSONBuf.String())
+	}
+}

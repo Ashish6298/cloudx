@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
 	"github.com/cloudx-org/cloudx/internal/config"
@@ -18,6 +19,7 @@ import (
 	"github.com/cloudx-org/cloudx/internal/logs"
 	"github.com/cloudx-org/cloudx/internal/registry"
 	"github.com/cloudx-org/cloudx/internal/spec"
+	"github.com/cloudx-org/cloudx/internal/state/models"
 	"github.com/cloudx-org/cloudx/internal/state/sqlite"
 	"github.com/spf13/cobra"
 )
@@ -82,21 +84,23 @@ Examples:
 				}
 			}
 
+			isJSON := isJSONOutput(cmd, jsonOutput)
+
 			if isServiceVersion {
 				parts := strings.SplitN(targetArg, ":", 2)
 				serviceName := parts[0]
 				targetVersion := parts[1]
 
-				fmt.Fprintf(out, "Deploying version '%s' for service '%s'...\n\n", targetVersion, serviceName)
+				if !isJSON {
+					fmt.Fprintf(out, "Deploying version '%s' for service '%s'...\n\n", targetVersion, serviceName)
+				}
 				res, err := cp.DeployVersion(ctx, serviceName, targetVersion, nil)
 				if err != nil {
 					return fmt.Errorf("versioned deployment failed: %w", err)
 				}
 
-				if jsonOutput {
-					enc := json.NewEncoder(out)
-					enc.SetIndent("", "  ")
-					return enc.Encode(res)
+				if isJSON {
+					return writeJSON(out, res)
 				}
 
 				fmt.Fprintf(out, " [SUCCESS] Service '%s' (ID: %s)\n", res.ServiceName, res.ServiceID)
@@ -125,27 +129,31 @@ Examples:
 				return fmt.Errorf("failed to parse manifest %s: %w", filePath, err)
 			}
 
-			fmt.Fprintf(out, "Deploying services from %s...\n\n", filePath)
+			if !isJSON {
+				fmt.Fprintf(out, "Deploying services from %s...\n\n", filePath)
+			}
 
 			var results []*controlplane.DeployResult
 			for name, svcConfig := range cfgFile.Services {
 				res, err := cp.DeployService(ctx, svcConfig, nil)
 				if err != nil {
-					fmt.Fprintf(out, " [FAILED] Service '%s': %v\n", name, err)
+					if !isJSON {
+						fmt.Fprintf(out, " [FAILED] Service '%s': %v\n", name, err)
+					}
 					continue
 				}
 				results = append(results, res)
 
-				fmt.Fprintf(out, " [SUCCESS] Service '%s' (ID: %s)\n", res.ServiceName, res.ServiceID)
-				fmt.Fprintf(out, "   Replicas: %d/%d assigned\n", len(res.Tasks), res.Replicas)
-				fmt.Fprintf(out, "   Deployment: %s\n", res.DeploymentID)
-				fmt.Fprintf(out, "   Status: %s\n\n", res.Status)
+				if !isJSON {
+					fmt.Fprintf(out, " [SUCCESS] Service '%s' (ID: %s)\n", res.ServiceName, res.ServiceID)
+					fmt.Fprintf(out, "   Replicas: %d/%d assigned\n", len(res.Tasks), res.Replicas)
+					fmt.Fprintf(out, "   Deployment: %s\n", res.DeploymentID)
+					fmt.Fprintf(out, "   Status: %s\n\n", res.Status)
+				}
 			}
 
-			if jsonOutput {
-				enc := json.NewEncoder(out)
-				enc.SetIndent("", "  ")
-				return enc.Encode(results)
+			if isJSON {
+				return writeJSON(out, results)
 			}
 
 			return nil
@@ -167,6 +175,7 @@ func newServiceCmd() *cobra.Command {
 	cmd.AddCommand(newServiceListCmd())
 	cmd.AddCommand(newServiceInspectCmd())
 	cmd.AddCommand(newServiceScaleCmd())
+	cmd.AddCommand(newServiceRestartCmd())
 	cmd.AddCommand(newServiceEndpointsCmd())
 	cmd.AddCommand(newServiceLogsCmd())
 	return cmd
@@ -199,7 +208,7 @@ func newServiceListCmd() *cobra.Command {
 				return fmt.Errorf("failed to list services: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(services)
@@ -269,7 +278,7 @@ func newServiceInspectCmd() *cobra.Command {
 				return fmt.Errorf("failed to inspect service: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(inspectRes)
@@ -282,7 +291,26 @@ func newServiceInspectCmd() *cobra.Command {
 			fmt.Fprintf(out, "  Status:      %s\n", svc.Status)
 			fmt.Fprintf(out, "  Replicas:    %d\n", svc.Replicas)
 			fmt.Fprintf(out, "  Runtime:     %s\n", svc.Runtime)
-			fmt.Fprintf(out, "  Command:     %s\n", svc.Command)
+			fmt.Fprintf(out, "  Command:     %s\n", auth.RedactString(svc.Command))
+
+			// Parse embedded spec_json to display args and env
+			if svc.SpecJSON != "" {
+				var specCfg spec.ServiceConfig
+				if err := json.Unmarshal([]byte(svc.SpecJSON), &specCfg); err == nil {
+					if len(specCfg.Args) > 0 {
+						redactedArgs := auth.RedactCommandArgs(specCfg.Args)
+						fmt.Fprintf(out, "  Args:        %s\n", strings.Join(redactedArgs, " "))
+					}
+					if len(specCfg.Environment) > 0 {
+						fmt.Fprintln(out, "  Environment:")
+						redactedEnv := auth.RedactEnvironmentVariables(specCfg.Environment)
+						for k, v := range redactedEnv {
+							fmt.Fprintf(out, "    - %s: %s\n", k, v)
+						}
+					}
+				}
+			}
+
 			fmt.Fprintf(out, "  Created:     %s\n", svc.CreatedAt.Format(time.RFC3339))
 			fmt.Fprintf(out, "  Updated:     %s\n\n", svc.UpdatedAt.Format(time.RFC3339))
 
@@ -366,7 +394,7 @@ func newServiceScaleCmd() *cobra.Command {
 				return fmt.Errorf("failed to scale service %s: %w", serviceNameOrID, err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
@@ -385,6 +413,116 @@ func newServiceScaleCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output scale result as JSON")
+	return cmd
+}
+
+func newServiceRestartCmd() *cobra.Command {
+	var jsonOutput bool
+
+	cmd := &cobra.Command{
+		Use:   "restart <service-name-or-id>",
+		Short: "Restart all tasks for a service and trigger rolling recovery",
+		Long: `Stop existing running tasks for a service to force a fresh restart and reconciliation across cluster workers.
+
+Examples:
+  cloudx service restart api
+  cloudx service restart srv-18f45a2b-8a7f9b2c
+  cloudx service restart api --json`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			serviceNameOrID := args[0]
+			out := cmd.OutOrStdout()
+
+			cfg, err := config.Load(cliOpts)
+			if err != nil {
+				return fmt.Errorf("failed to load configuration: %w", err)
+			}
+
+			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+
+			store, err := sqlite.Open(ctx, dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to connect to cluster store: %w", err)
+			}
+			defer store.Close()
+
+			cp, err := controlplane.New(controlplane.Options{
+				Config: cfg,
+				Store:  store,
+				Logger: logging.NewDefaultLogger(),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to initialize control plane: %w", err)
+			}
+
+			inspectRes, err := cp.InspectService(ctx, serviceNameOrID)
+			if err != nil {
+				return err
+			}
+
+			svc := inspectRes.Service
+			now := time.Now().UTC()
+
+			// Mark all currently running/active tasks for this service as stopped
+			stoppedCount := 0
+			for _, t := range inspectRes.Tasks {
+				if t.State != string(models.TaskStateStopped) && t.State != string(models.TaskStateFailed) && t.State != string(models.TaskStateLost) {
+					t.State = string(models.TaskStateStopped)
+					t.UpdatedAt = now
+					_ = store.Tasks().Update(ctx, t)
+					stoppedCount++
+				}
+			}
+
+			// Append SERVICE_RESTARTED audit event
+			_ = store.Events().Append(ctx, &models.Event{
+				ID:        id.NewEventID(),
+				Type:      "SERVICE_RESTARTED",
+				Source:    "controlplane",
+				EntityID:  svc.ID,
+				Payload:   fmt.Sprintf(`{"service":"%s","stopped_tasks":%d}`, svc.Name, stoppedCount),
+				CreatedAt: now,
+			})
+
+			// Run reconciliation to reschedule new replacement tasks
+			summary, err := cp.Reconciler.ReconcileAll(ctx)
+			if err != nil {
+				return fmt.Errorf("reconciliation after service restart failed: %w", err)
+			}
+
+			type restartResult struct {
+				ServiceID    id.ID                         `json:"service_id"`
+				ServiceName  string                        `json:"service_name"`
+				StoppedTasks int                           `json:"stopped_tasks"`
+				Summary      controlplane.ReconciliationSummary `json:"summary"`
+				RestartedAt  time.Time                     `json:"restarted_at"`
+			}
+
+			res := restartResult{
+				ServiceID:    svc.ID,
+				ServiceName:  svc.Name,
+				StoppedTasks: stoppedCount,
+				Summary:      *summary,
+				RestartedAt:  now,
+			}
+
+			if isJSONOutput(cmd, jsonOutput) {
+				enc := json.NewEncoder(out)
+				enc.SetIndent("", "  ")
+				return enc.Encode(res)
+			}
+
+			fmt.Fprintf(out, "Service '%s' restarted successfully:\n", svc.Name)
+			fmt.Fprintf(out, "  Stopped Tasks:     %d\n", stoppedCount)
+			fmt.Fprintf(out, "  New Tasks Created: %d\n", summary.CreatedTasks)
+			fmt.Fprintf(out, "  Status:            RESTARTED\n")
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output restart result as JSON")
 	return cmd
 }
 
@@ -466,8 +604,9 @@ Examples:
 			}
 
 			// Format and display initial historical entries
+			isJSON := isJSONOutput(cmd, jsonOutput)
 			for _, entry := range entries {
-				printLogEntry(out, entry, jsonOutput)
+				printLogEntry(out, entry, isJSON)
 			}
 
 			// If follow requested, subscribe to live logs
@@ -486,7 +625,7 @@ Examples:
 						if !ok {
 							return nil
 						}
-						printLogEntry(out, entry, jsonOutput)
+						printLogEntry(out, entry, isJSON)
 					}
 				}
 			}
@@ -564,7 +703,7 @@ Examples:
 					return fmt.Errorf("failed to get endpoints for %s: %w", target, err)
 				}
 
-				if jsonOutput {
+				if isJSONOutput(cmd, jsonOutput) {
 					enc := json.NewEncoder(out)
 					enc.SetIndent("", "  ")
 					return enc.Encode(endpoints)
@@ -605,7 +744,7 @@ Examples:
 					return fmt.Errorf("failed to list endpoints in network %s: %w", networkFilter, err)
 				}
 
-				if jsonOutput {
+				if isJSONOutput(cmd, jsonOutput) {
 					enc := json.NewEncoder(out)
 					enc.SetIndent("", "  ")
 					return enc.Encode(endpoints)
@@ -641,7 +780,7 @@ Examples:
 				return fmt.Errorf("failed to list all endpoints: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(allEndpoints)

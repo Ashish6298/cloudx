@@ -80,7 +80,7 @@ func newDeploymentListCmd() *cobra.Command {
 				}
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(allDeployments)
@@ -181,7 +181,7 @@ func newDeploymentInspectCmd() *cobra.Command {
 				return fmt.Errorf("deployment '%s' not found", depID)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(targetDeployment)
@@ -284,7 +284,7 @@ The desired state is updated directly to the previous immutable deployment recor
 				return fmt.Errorf("rollback failed: %w", err)
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)

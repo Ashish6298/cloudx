@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudx-org/cloudx/internal/auth"
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/logs"
 	"github.com/cloudx-org/cloudx/internal/scheduler"
@@ -30,8 +31,17 @@ type JobRunResult struct {
 // RunJob validates a job specification, evaluates cluster capacity using the unified scheduler,
 // persists the job record and task in the state store, appends audit events, and dispatches execution to the assigned worker.
 func (cp *ControlPlane) RunJob(ctx context.Context, jobConfig *spec.JobConfig, dispatcher scheduler.Dispatcher) (*JobRunResult, error) {
+	if err := auth.EnsureScope(ctx, auth.ScopeControlPlane); err != nil {
+		return nil, err
+	}
+
 	if jobConfig == nil {
 		return nil, fmt.Errorf("job configuration is nil")
+	}
+
+	// Validate job name against directory traversal or illegal characters
+	if err := auth.ValidateResourceID(jobConfig.Name, id.EntityJob); err != nil {
+		return nil, fmt.Errorf("invalid job name '%s': %w", jobConfig.Name, err)
 	}
 
 	// 1. Validate Job Configuration

@@ -9,6 +9,7 @@ import (
 
 	"github.com/cloudx-org/cloudx/internal/common/id"
 	"github.com/cloudx-org/cloudx/internal/common/logging"
+	"github.com/cloudx-org/cloudx/internal/otel"
 	"github.com/cloudx-org/cloudx/internal/spec"
 	"github.com/cloudx-org/cloudx/internal/state"
 	"github.com/cloudx-org/cloudx/internal/state/models"
@@ -88,11 +89,26 @@ func NewAssignmentCoordinator(store state.Store, scheduler Scheduler, dispatcher
 
 // Assign evaluates cluster capacity, picks the best worker, persists assignment, and dispatches to worker.
 func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions) (*AssignmentResult, error) {
+	tracer := otel.GetTracer("cloudx.scheduler")
+	ctx, span := tracer.Start(ctx, "schedule.assign",
+		otel.WithSpanKind(otel.SpanKindInternal),
+		otel.WithAttributes(
+			otel.StringAttr("cloudx.task_id", string(opts.TaskID)),
+			otel.StringAttr("cloudx.service_id", string(opts.ServiceID)),
+			otel.StringAttr("cloudx.job_id", string(opts.JobID)),
+		),
+	)
+	defer span.End()
+
 	if opts.TaskID == "" {
-		return nil, fmt.Errorf("task_id is required")
+		err := fmt.Errorf("task_id is required")
+		span.RecordError(err)
+		return nil, err
 	}
 	if opts.Spec.Command == "" {
-		return nil, fmt.Errorf("task command is required")
+		err := fmt.Errorf("task command is required")
+		span.RecordError(err)
+		return nil, err
 	}
 	if opts.Requirements == nil {
 		opts.Requirements = &TaskRequirements{
@@ -300,6 +316,13 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 		Payload:   fmt.Sprintf(`{"worker_id":"%s","service_id":"%s","deployment_id":"%s","score":%.2f}`, decision.WorkerID, opts.ServiceID, opts.DeploymentID, decision.Score),
 		CreatedAt: now,
 	})
+
+	span.SetAttributes(
+		otel.StringAttr("scheduler.selected_worker", string(decision.WorkerID)),
+		otel.FloatAttr("scheduler.score", decision.Score),
+		otel.StringAttr("task.state", string(models.TaskStateAssigned)),
+	)
+	span.SetStatus(otel.StatusOK, "task scheduled and assigned successfully")
 
 	return &AssignmentResult{
 		TaskID:    opts.TaskID,

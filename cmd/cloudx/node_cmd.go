@@ -98,7 +98,7 @@ func newNodeListCmd() *cobra.Command {
 				})
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(rows)
@@ -229,7 +229,7 @@ func newNodeDrainCmd() *cobra.Command {
 				Message:        fmt.Sprintf("Worker %s is now DRAINING (%d active tasks marked for eviction). Workloads will be rescheduled to other nodes.", matchedWorker.ID, activeTasks),
 			}
 
-			if jsonOutput {
+			if isJSONOutput(cmd, jsonOutput) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)

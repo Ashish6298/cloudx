@@ -23,6 +23,7 @@ type CLIOptions struct {
 	StoragePath       string
 	HeartbeatInterval time.Duration
 	LogLevel          string
+	OTLPEndpoint      string
 }
 
 // DiscoverConfigFile searches standard locations for a cloudx configuration file:
@@ -140,6 +141,12 @@ func applyEnvOverrides(cfg *Config) {
 	if val := os.Getenv("CLOUDX_LOGGING_LEVEL"); val != "" {
 		cfg.Logging.Level = strings.ToLower(val)
 	}
+	if val := os.Getenv("CLOUDX_OTEL_ENDPOINT"); val != "" {
+		cfg.Telemetry.OTLPEndpoint = val
+	}
+	if val := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); val != "" {
+		cfg.Telemetry.OTLPEndpoint = val
+	}
 }
 
 func applyCLIOverrides(cfg *Config, opts CLIOptions) {
@@ -174,5 +181,8 @@ func applyCLIOverrides(cfg *Config, opts CLIOptions) {
 	}
 	if opts.LogLevel != "" {
 		cfg.Logging.Level = strings.ToLower(opts.LogLevel)
+	}
+	if opts.OTLPEndpoint != "" {
+		cfg.Telemetry.OTLPEndpoint = opts.OTLPEndpoint
 	}
 }

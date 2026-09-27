@@ -58,6 +58,7 @@ cloudx/
 │   ├── controlplane/     # Central control plane logic & reconciler
 │   ├── events/           # Audit trail and event engine
 │   ├── health/           # Heartbeat and health check probes
+│   ├── metrics/          # Metrics model: counters, gauges, histograms (Phase 58)
 │   ├── registry/         # Service discovery & endpoint registry
 │   ├── runtime/          # Process runtime abstractions
 │   ├── scheduler/        # Deterministic scoring & placement engine
@@ -190,15 +191,378 @@ Implementation follows the [88-Phase Roadmap](./phase.txt):
 - [x] **Milestone 15: Resource-Aware Orchestration** (Phases 55–57 ✅ complete)
   - [x] **Phase 56**: Improved Scheduling Score *([PHASE_56_COMPLETION_REPORT.md](./docs/reports/PHASE_56_COMPLETION_REPORT.md))*
   - [x] **Phase 57**: Scheduling Explanation *([PHASE_57_COMPLETION_REPORT.md](./docs/reports/PHASE_57_COMPLETION_REPORT.md))*
-- [ ] **Milestone 16: Observability** (Phases 58–61)
-  - [ ] **Phase 58**: Metrics Model
-  - [ ] **Phase 59**: OpenTelemetry-Compatible Architecture
-  - [ ] **Phase 60**: Diagnostics
-- [ ] **Milestones 17–88**: DNS resolution, load balancing, security, ingress, multi-node mesh, and release audit.
+- [x] **Milestone 16: Observability** (Phases 58–60 ✅ complete)
+  - [x] **Phase 58**: Metrics Model *([PHASE_58_COMPLETION_REPORT.md](./docs/reports/PHASE_58_COMPLETION_REPORT.md))*
+  - [x] **Phase 59**: OpenTelemetry-Compatible Architecture *([PHASE_59_COMPLETION_REPORT.md](./docs/reports/PHASE_59_COMPLETION_REPORT.md))*
+  - [x] **Phase 60**: Diagnostics *([PHASE_60_COMPLETION_REPORT.md](./docs/reports/PHASE_60_COMPLETION_REPORT.md))*
+- [x] **Milestone 17: CLI Maturity** (Phases 61–63)
+  - [x] **Phase 61**: CLI Command Structure *([PHASE_61_COMPLETION_REPORT.md](./docs/reports/PHASE_61_COMPLETION_REPORT.md))*
+- [ ] **Milestones 18–88**: CLI machine output & ergonomics, DNS resolution, load balancing, security, ingress, multi-node mesh, and release audit.
+
+---
+
+## Developer CLI Command Matrix
+
+The `cloudx` CLI provides an intuitive, consistent command surface across all core CloudX lifecycle primitives:
+
+```bash
+# Cluster & Workers
+cloudx init                     # Quick cluster initialization
+cloudx status                   # Quick cluster status & node summary
+cloudx cluster init/status/nodes# Comprehensive cluster control plane operations
+cloudx worker start/join/status # Worker lifecycle management
+
+# Services & Deployments
+cloudx deploy [manifest.yaml]   # Deploy service or batch manifest
+cloudx rollback <service>       # Rollback service to previous revision
+cloudx service list             # List registered services
+cloudx service inspect <id>     # Detailed JSON/tabular inspection
+cloudx service scale <id> <n>   # Dynamically scale replica count
+cloudx service restart <id>     # Restart active service instances
+cloudx service logs <id>        # View/stream task logs
+cloudx service endpoints        # List exposed service ports and VIPs
+
+# Jobs
+cloudx job run [job.yaml]       # Run batch or one-off job
+cloudx job list                 # List batch job executions
+cloudx job inspect <id>         # Inspect job execution details
+cloudx job logs <id>            # Fetch job execution output
+
+# Nodes, Volumes & Networks
+cloudx node list                # List registered nodes
+cloudx node drain <id>          # Drain node and migrate tasks
+cloudx volume create/list/inspect/delete  # Persistent storage management
+cloudx network create/list      # Virtual overlay networking
+
+# Observability & Diagnostics
+cloudx events                   # Stream cluster lifecycle audit events
+cloudx diagnose                 # Comprehensive diagnostic health checks
+cloudx metrics show             # In-process metrics inspection
+cloudx otel status/spans/metrics# OpenTelemetry tracing and metric bridging
+```
+
+---
 
 
+## Observability & Telemetry
 
+CloudX provides rich in-process metrics, OpenTelemetry-compatible tracing, and cluster diagnostics with **zero required external infrastructure**.
 
+### 1. In-Process Metrics (`cloudx metrics show`)
+
+Phase 58 introduces a zero-dependency in-process metrics model:
+
+```bash
+# Show all cluster metrics
+./bin/cloudx metrics show
+
+# Filter by domain
+./bin/cloudx metrics show --domain worker
+./bin/cloudx metrics show --domain service
+./bin/cloudx metrics show --domain controlplane
+./bin/cloudx metrics show --domain job
+
+# Machine-readable JSON output
+./bin/cloudx metrics show --json
+```
+
+| Domain | Metrics |
+|--------|--------|
+| **Control Plane** | reconciliation cycles/failures/duration, scheduling latency/decisions/failures, RPC failures, state CRUD counters |
+| **Worker** | CPU usage %, memory used/avail/total bytes, active task count, process restarts, heartbeat counters |
+| **Service** | replicas desired, replicas running, health failures, restart count |
+| **Job** | execution duration histogram, succeeded/failed/cancelled/retry counters |
+
+---
+
+### 2. OpenTelemetry Tracing & Export (`cloudx otel`)
+
+Phase 59 introduces OpenTelemetry-compatible tracing and metric bridging:
+
+```bash
+# Inspect OpenTelemetry provider status and configuration
+./bin/cloudx otel status
+./bin/cloudx otel status --json
+
+# Inspect in-memory trace spans recorded by CloudX
+./bin/cloudx otel spans
+./bin/cloudx otel spans --limit 10
+./bin/cloudx otel spans --json
+
+# Inspect bridged OpenTelemetry ResourceMetrics
+./bin/cloudx otel metrics
+./bin/cloudx otel metrics --json
+```
+
+#### Standalone vs. Hybrid Mode
+- **Standalone Mode (Default):** Spans and metrics are captured in-memory using an efficient FIFO ring buffer. No external server (Collector/Jaeger/Tempo) is required.
+- **Hybrid / Export Mode:** Set `CLOUDX_OTEL_ENDPOINT=http://localhost:4318` (or configure `telemetry.otlp_endpoint` in `cloudx.yaml`) to automatically stream OTLP HTTP/JSON trace spans to any OpenTelemetry collector while preserving local standalone functionality.
+
+---
+
+### 3. Cluster Diagnostics (`cloudx diagnose`)
+
+Phase 60 introduces a single diagnostic tool to identify common CloudX problems across 9 core vectors:
+
+```bash
+# Run comprehensive diagnostic checks across cluster
+./bin/cloudx diagnose
+
+# Aliases
+./bin/cloudx doctor
+./bin/cloudx diag
+
+# Output machine-readable JSON report
+./bin/cloudx diagnose --json
+```
+
+#### Diagnostic Vectors Evaluated
+
+1. **Configuration:** Validates semantic structure, storage paths, and filesystem write permissions.
+2. **Database Integrity:** Runs SQLite `PRAGMA integrity_check` and `PRAGMA foreign_key_check` on `cloudx.db`.
+3. **Control Plane Health:** Tests TCP listener reachability and control plane daemon state.
+4. **Worker Connectivity:** Inspects registered worker daemons and verifies TCP network reachability.
+5. **Heartbeat Status:** Evaluates heartbeat timestamps and detects `SUSPECTED`, `UNHEALTHY`, or `LOST` workers.
+6. **Scheduler Status:** Checks active schedulable workers in `READY` state.
+7. **Orphaned Tasks:** Identifies stranded tasks on dead/lost workers and crashlooping workloads.
+8. **Failed Deployments:** Detects degraded services and stalled/halted deployment revisions.
+9. **Resource Pressure:** Evaluates host CPU utilization, memory pressure, and worker capacity exhaustion.
+
+---
+
+### 4. CLI Command Interface & Maturity (Phase 61 & Phase 62)
+
+CloudX features a professional developer interface with human-friendly terminal formatting and machine-readable JSON output for CI/CD, automation scripts, and tooling integrations.
+
+#### Standard Command Surface
+
+| Domain | Command | Description |
+|--------|---------|-------------|
+| **Core** | `cloudx init` / `cloudx status` | Initialize storage/database and inspect overall cluster health |
+| **Cluster** | `cloudx cluster init` / `status` / `nodes` / `token` | Cluster bootstrap token management, health topology, member nodes |
+| **Worker** | `cloudx worker start` / `join` / `status` | Start local worker daemon, join remote cluster, inspect worker list |
+| **Deployment**| `cloudx deploy -f <manifest>` / `cloudx rollback <svc> [ver]` | Declarative service manifests and atomic zero-cost version rollbacks |
+| **Service** | `cloudx service list` / `inspect` / `scale` / `restart` / `endpoints` / `logs` | Service lifecycle, live logs streaming, replica scaling, service discovery |
+| **Job** | `cloudx job run` / `list` / `inspect` / `logs` / `cancel` / `retry` | Batch job execution, failure retries, execution logging, status inspection |
+| **Node** | `cloudx node list` / `drain` | Node topology and zero-downtime worker task evacuation |
+| **Volume** | `cloudx volume create` / `list` / `inspect` / `delete` | Local and host persistent storage mounts for stateful workloads |
+| **Network** | `cloudx network create` / `list` / `inspect` / `delete` | Isolated virtual overlay networking and DNS service discovery |
+| **Explain** | `cloudx task explain <task-id>` | Deterministic scheduler decision rationale and scoring breakdown |
+| **Diagnostics**| `cloudx diagnose` (aliases: `doctor`, `diag`) | 9-vector operational health and sanity inspection |
+
+#### Machine-Readable JSON Output (`--output json` / `-o json`)
+
+All major commands support the standard `--output json` (or `-o json` / `--json`) flag for frictionless integration with CI/CD pipelines, jq filters, automation scripts, and future web dashboards:
+
+```bash
+# Core status & topology
+cloudx status --output json
+cloudx cluster nodes -o json
+cloudx worker status -o json
+cloudx node list --output json
+
+# Workloads & Inspections
+cloudx deploy -f service.yaml --output json
+cloudx service list -o json
+cloudx service inspect api --output json
+cloudx service endpoints --output json
+cloudx job list -o json
+cloudx job inspect migration --output json
+
+# Observability, Events & Diagnostics
+cloudx events --service api --output json
+cloudx diagnose --output json
+cloudx metrics show --output json
+cloudx otel status --output json
+cloudx otel spans --output json
+cloudx otel metrics --output json
+```
+
+---
+
+### 5. Developer Error UX & Actionable Remediation (Phase 63)
+
+CloudX avoids raw, confusing RPC errors in favor of clear, developer-centric explanations with contextual remediation and suggested commands.
+
+#### Example: Unreachable Control Plane
+
+**Bad (Raw technical error):**
+```text
+rpc error: code = Unavailable desc = connection refused
+```
+
+**CloudX (Standard Developer UX):**
+```text
+CloudX control plane is unreachable.
+
+Endpoint:
+127.0.0.1:7000
+
+Possible causes:
+- Control plane is stopped.
+- Incorrect endpoint address.
+- Network connection unavailable or blocked by firewall.
+
+Suggested actions:
+- Start the control plane with: 'cloudx server'
+- Check the configured address with: 'cloudx config show'
+- Pass an explicit endpoint with: '--control-plane-addr <host:port>'
+
+(Provide technical details under: --verbose)
+```
+
+#### Detailed Technical Mode (`--verbose` / `-v`)
+
+Developers debugging deep RPC connectivity or subsystem failures can pass `--verbose` / `-v` to inspect raw root-cause error chains without obscuring clarity:
+
+```bash
+cloudx status --verbose
+cloudx deploy -f service.yaml -v
+```
+
+---
+
+### 6. RPC Security, TLS / mTLS & Secret Protection (Phase 64)
+
+CloudX implements robust transport layer security, cryptographic identity verification, and secret log redaction across the gRPC communication fabric.
+
+#### Transport Layer Security (TLS & mTLS)
+- **Zero-Config Self-Signed Certificates**: CloudX can generate in-memory or on-disk X.509 RSA certificates for encrypted development environments with zero external dependencies.
+- **Mutual TLS (mTLS)**: Enforces bidirectional cryptographic identity verification between worker daemons and the control plane.
+- **Configuration**:
+  ```yaml
+  tls:
+    enabled: true
+    cert_file: "/etc/cloudx/tls/server.crt"
+    key_file: "/etc/cloudx/tls/server.key"
+    ca_file: "/etc/cloudx/tls/ca.crt"
+    client_auth: true # Enforce mTLS client certificate verification
+  ```
+
+#### Secret & Token Log Redaction
+CloudX automatically detects and redacts secrets before writing logs to stdout or persistent storage:
+- Bootstrap tokens (`clx-btk-*` $\rightarrow$ `clx-btk-[REDACTED]`)
+- Authorization headers (`Bearer [REDACTED]`)
+- PEM private keys (`-----BEGIN ... PRIVATE KEY-----` $\rightarrow$ `[REDACTED_PRIVATE_KEY]`)
+- Structured sensitive fields (`password`, `token`, `secret`, `private_key`)
+
+---
+
+### 7. Universal Secret Redaction & Protection (Phase 65)
+
+CloudX implements universal, multi-layer secret protection across the entire system to prevent accidental credential leakage in logs, persistent events, CLI output, and error messages.
+
+#### Redaction Domains
+- **Application Logs (`internal/common/logging`)**: All text messages and structured log fields undergo automatic credential sanitization.
+- **Cluster Events (`internal/events`)**: Event payloads with sensitive keys, database URLs, and API tokens are sanitized before SQLite persistence and during `cloudx events` CLI display.
+- **Resource Inspection (`cloudx service inspect`, `cloudx job inspect`)**: Sensitive command-line flags (`--password`, `--token`, `--api-key`) and environment variables (`DATABASE_URL`, `DB_PASSWORD`, `API_KEY`, etc.) are masked as `[REDACTED]` in terminal outputs.
+- **Error Messages (`errors_ux`)**: Formatted developer error messages automatically mask credentials, URLs, and private keys embedded in exception strings or technical stack traces.
+
+---
+
+### 8. Permission Boundaries & Input Validation (Phase 66)
+
+CloudX strictly demarcates execution boundaries and sanitizes all incoming identifiers and file paths:
+
+- **Permission Scopes (`auth.PermissionScope`)**: Distinguishes Control Plane, Worker, and Runtime execution contexts via `auth.EnsureScope`.
+- **Resource ID Sanitization (`auth.ValidateResourceID`)**: Enforces alphanumeric naming rules and rejects illegal characters, null bytes, and traversal tokens (`..`, `/`, `\`, `*`, `?`).
+- **Path Traversal Prevention (`auth.ValidateSafePath`)**: Ensures volume locations and runtime paths cannot escape root storage boundaries.
+
+---
+
+### 9. Unit Test Completion & Reliability Verification (Phase 67)
+
+CloudX features high meaningful automated test coverage across all subsystems, verifying production readiness and system invariants:
+
+- **Metrics & Observability (`internal/metrics`, `internal/otel`)**: Counter, Gauge, and Histogram metrics (>91% coverage).
+- **Health & Failure Detectors (`internal/health`, `internal/state/transitions`)**: Failure detectors, probe execution, heartbeat monitoring, and deterministic state transitions (>88% coverage).
+- **Control Plane & Service Discovery (`internal/controlplane`, `internal/registry`)**: Multi-version rolling updates, instant rollbacks, multi-factor placement scheduler, and service discovery (>82% coverage).
+- **Storage & State Machine (`internal/state/sqlite`)**: Transactional ACID state persistence, relational foreign-key integrity, and repository CRUD (>83% coverage).
+- **Runtime Execution (`internal/runtime`, `internal/worker`)**: Native process lifecycle supervision, resource limits, and worker daemon management (>80% coverage).
+
+---
+
+### 10. Automated Cluster Integration Test Harness (Phase 68)
+
+CloudX includes a hermetic, local-first **Integration Test Harness** (`test/integration/harness.go`) designed for end-to-end multi-node cluster verification without any external cloud service or third-party infrastructure dependencies.
+
+#### Verification Cycle
+The harness tests the complete cluster lifecycle in an automated test suite:
+$$\text{Deploy v1} \longrightarrow \text{Scale Up} \longrightarrow \text{Crash Task/Worker} \longrightarrow \text{Auto-Recover} \longrightarrow \text{Deploy v2} \longrightarrow \text{Rollback to v1}$$
+
+#### Running Integration Tests
+```bash
+# Execute the full integration test suite
+go test -v ./test/integration/...
+```
+
+---
+
+### 11. Deterministic Failure Testing (Phase 69)
+
+CloudX features a comprehensive automated failure test suite (`test/integration/failure_scenarios_test.go`) validating deterministic fault tolerance, self-healing, and state recovery across 10 critical failure modes:
+
+1. **Worker Crash**: Orphaned tasks on abruptly lost workers are automatically detected by the Reconciler and migrated to surviving healthy nodes.
+2. **Process Crash**: Terminated workloads are caught via process supervision, transitioning tasks to `FAILED` and auto-spawning replacements.
+3. **Control-Plane Restart**: Full state, deployment histories, and task mappings survive abrupt control-plane shutdown and recovery against persistent SQLite storage.
+4. **SQLite Interruption**: Interrupted transactions rollback completely without partial or corrupted state persistence.
+5. **RPC Timeout**: Expired client deadlines fail cleanly with standard gRPC `DeadlineExceeded` without server hangs or goroutine leaks.
+6. **Duplicate Messages**: Worker re-registration and task assignments execute idempotently without throwing `AlreadyExists` or duplicating state.
+7. **Delayed Messages**: Unresponsive workers trigger progressive degradation (`READY` $\rightarrow$ `SUSPECTED` $\rightarrow$ `UNHEALTHY` $\rightarrow$ `LOST`).
+8. **Health Failure**: Faulty probes correctly transition workloads and self-heal upon probe recovery.
+9. **Resource Exhaustion**: Safe in-process resource limits protect cluster stability during memory pressure.
+10. **Worker Reconnection**: Disconnected worker daemons seamlessly reconnect and restore `READY` status using persisted `worker.id`.
+
+```bash
+# Run all failure scenario tests
+go test -v -run TestFailure_ ./test/integration/...
+```
+
+---
+
+### 12. Race & Concurrency Hardening (Phase 70)
+
+CloudX implements strict synchronization and mutual exclusion guarantees across all core layers, verified via high-concurrency automated race testing (`test/integration/race_concurrency_test.go`):
+
+- **State Repository Layer**: SQLite WAL mode and serialized single-connection pooling prevent data races and database lock contention under high-throughput parallel reads and writes.
+- **Worker Task Manager**: Thread-safe task maps protected by `sync.RWMutex` combined with per-task state mutexes eliminate torn reads during simultaneous assignment, supervision, and stop requests.
+- **Scheduler Scoring**: Stateless, read-only multi-node capacity evaluations support unbounded concurrent scheduling passes.
+- **Atomic Reconciliation**: The Control Plane Reconciler uses a dedicated `reconcileMu` mutex to serialize cluster convergence passes, preventing race conditions and replica over-provisioning during simultaneous triggers.
+- **Event Engine**: Thread-safe transactional append-only recording with in-line payload secret masking under heavy concurrent publishing.
+
+```bash
+# Run race and concurrency verification tests
+go test -v -run TestRace_ ./test/integration/...
+```
+
+---
+
+### 13. CloudX Golden-Path End-to-End Test Suite (Phase 71)
+
+CloudX includes a fully automated 17-step **Golden-Path End-to-End Test Suite** (`test/integration/e2e_golden_path_test.go`) validating the entire operational lifecycle from initialization to self-healing, rolling upgrade, rollback, and inspection:
+
+1. **Initialize cluster**: SQLite database and schemas setup.
+2. **Start control plane**: Core subsystems (Reconciler, Scheduler, Failure Detector, Event Engine) launched.
+3. **Start 3 workers**: Worker daemons register via gRPC and establish heartbeat streams.
+4. **Deploy API**: `cloudx-api:v1` deployed and scheduled.
+5. **Scale API to 3**: Dynamic scale-up to 3 replicas across 3 workers.
+6. **Verify health**: Active probe and heartbeat validation.
+7. **Kill one process**: SIGKILL simulation on task.
+8. **Verify restart**: Reconciler self-heals task deficit.
+9. **Kill worker node**: Simulates abrupt node termination.
+10. **Verify rescheduling**: Orphaned tasks automatically rescheduled onto healthy nodes.
+11. **Deploy v2**: Rolling upgrade to `cloudx-api:v2`.
+12. **Verify rollout**: Progressive replica cutover to v2.
+13. **Trigger failure**: Canary probe fault injection.
+14. **Rollback**: Instantaneous rollback to stable `v1` version.
+15. **Verify v1**: Verification that active deployment points to `v1`.
+16. **Inspect events**: Complete audit trail verification (`SERVICE_CREATED`, `SERVICE_SCALED`, `DEPLOYMENT_STARTED`, `SERVICE_ROLLED_BACK`).
+17. **Inspect logs**: Workload log capture and aggregation verification.
+
+```bash
+# Run the complete Golden-Path End-to-End test suite
+go test -v -run TestE2E_GoldenPathScenario ./test/integration/...
+```
 
 
 
