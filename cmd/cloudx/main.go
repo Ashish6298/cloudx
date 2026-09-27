@@ -15,7 +15,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cliOpts config.CLIOptions
+var (
+	cliOpts    config.CLIOptions
+	cliVerbose bool
+)
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -23,6 +26,8 @@ func newRootCmd() *cobra.Command {
 		Short: "CloudX is a local-first private cloud runtime & developer infrastructure platform",
 		Long: `CloudX provides compute, service, and job orchestration across one or more machines
 with desired-state reconciliation, deterministic scheduling, and self-healing.`,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	// Global Persistent Flags for Configuration Overrides
@@ -33,6 +38,7 @@ with desired-state reconciliation, deterministic scheduling, and self-healing.`,
 	cmd.PersistentFlags().StringVar(&cliOpts.StoragePath, "storage-path", "", "Override Storage persistence path")
 	cmd.PersistentFlags().StringVar(&cliOpts.LogLevel, "log-level", "", "Override Logging level (debug, info, warn, error)")
 	cmd.PersistentFlags().StringVarP(&globalOutputFormat, "output", "o", "", "Output format (text, json, table)")
+	cmd.PersistentFlags().BoolVarP(&cliVerbose, "verbose", "v", false, "Enable verbose output and raw technical error details")
 
 	cmd.AddCommand(newVersionCmd())
 	cmd.AddCommand(newConfigCmd())
@@ -199,7 +205,13 @@ func newServerCmd() *cobra.Command {
 func main() {
 	rootCmd := newRootCmd()
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		endpoint := cliOpts.ControlPlaneAddr
+		if endpoint == "" {
+			if cfg, loadErr := config.Load(cliOpts); loadErr == nil && cfg.ControlPlane.Address != "" {
+				endpoint = cfg.ControlPlane.Address
+			}
+		}
+		PrintError(os.Stderr, err, endpoint, cliVerbose)
 		os.Exit(1)
 	}
 }

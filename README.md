@@ -378,6 +378,49 @@ cloudx otel spans --output json
 cloudx otel metrics --output json
 ```
 
+---
+
+### 5. Developer Error UX & Actionable Remediation (Phase 63)
+
+CloudX avoids raw, confusing RPC errors in favor of clear, developer-centric explanations with contextual remediation and suggested commands.
+
+#### Example: Unreachable Control Plane
+
+**Bad (Raw technical error):**
+```text
+rpc error: code = Unavailable desc = connection refused
+```
+
+**CloudX (Standard Developer UX):**
+```text
+CloudX control plane is unreachable.
+
+Endpoint:
+127.0.0.1:7000
+
+Possible causes:
+- Control plane is stopped.
+- Incorrect endpoint address.
+- Network connection unavailable or blocked by firewall.
+
+Suggested actions:
+- Start the control plane with: 'cloudx server'
+- Check the configured address with: 'cloudx config show'
+- Pass an explicit endpoint with: '--control-plane-addr <host:port>'
+
+(Provide technical details under: --verbose)
+```
+
+#### Detailed Technical Mode (`--verbose` / `-v`)
+
+Developers debugging deep RPC connectivity or subsystem failures can pass `--verbose` / `-v` to inspect raw root-cause error chains without obscuring clarity:
+
+```bash
+cloudx status --verbose
+cloudx deploy -f service.yaml -v
+```
+
+
 
 
 
