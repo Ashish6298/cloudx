@@ -480,3 +480,20 @@ CloudX features high meaningful automated test coverage across all subsystems, v
 - **Storage & State Machine (`internal/state/sqlite`)**: Transactional ACID state persistence, relational foreign-key integrity, and repository CRUD (>83% coverage).
 - **Runtime Execution (`internal/runtime`, `internal/worker`)**: Native process lifecycle supervision, resource limits, and worker daemon management (>80% coverage).
 
+---
+
+### 10. Automated Cluster Integration Test Harness (Phase 68)
+
+CloudX includes a hermetic, local-first **Integration Test Harness** (`test/integration/harness.go`) designed for end-to-end multi-node cluster verification without any external cloud service or third-party infrastructure dependencies.
+
+#### Verification Cycle
+The harness tests the complete cluster lifecycle in an automated test suite:
+$$\text{Deploy v1} \longrightarrow \text{Scale Up} \longrightarrow \text{Crash Task/Worker} \longrightarrow \text{Auto-Recover} \longrightarrow \text{Deploy v2} \longrightarrow \text{Rollback to v1}$$
+
+#### Running Integration Tests
+```bash
+# Execute the full integration test suite
+go test -v ./test/integration/...
+```
+
+
