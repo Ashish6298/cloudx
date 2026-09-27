@@ -535,6 +535,36 @@ CloudX implements strict synchronization and mutual exclusion guarantees across 
 go test -v -run TestRace_ ./test/integration/...
 ```
 
+---
+
+### 13. CloudX Golden-Path End-to-End Test Suite (Phase 71)
+
+CloudX includes a fully automated 17-step **Golden-Path End-to-End Test Suite** (`test/integration/e2e_golden_path_test.go`) validating the entire operational lifecycle from initialization to self-healing, rolling upgrade, rollback, and inspection:
+
+1. **Initialize cluster**: SQLite database and schemas setup.
+2. **Start control plane**: Core subsystems (Reconciler, Scheduler, Failure Detector, Event Engine) launched.
+3. **Start 3 workers**: Worker daemons register via gRPC and establish heartbeat streams.
+4. **Deploy API**: `cloudx-api:v1` deployed and scheduled.
+5. **Scale API to 3**: Dynamic scale-up to 3 replicas across 3 workers.
+6. **Verify health**: Active probe and heartbeat validation.
+7. **Kill one process**: SIGKILL simulation on task.
+8. **Verify restart**: Reconciler self-heals task deficit.
+9. **Kill worker node**: Simulates abrupt node termination.
+10. **Verify rescheduling**: Orphaned tasks automatically rescheduled onto healthy nodes.
+11. **Deploy v2**: Rolling upgrade to `cloudx-api:v2`.
+12. **Verify rollout**: Progressive replica cutover to v2.
+13. **Trigger failure**: Canary probe fault injection.
+14. **Rollback**: Instantaneous rollback to stable `v1` version.
+15. **Verify v1**: Verification that active deployment points to `v1`.
+16. **Inspect events**: Complete audit trail verification (`SERVICE_CREATED`, `SERVICE_SCALED`, `DEPLOYMENT_STARTED`, `SERVICE_ROLLED_BACK`).
+17. **Inspect logs**: Workload log capture and aggregation verification.
+
+```bash
+# Run the complete Golden-Path End-to-End test suite
+go test -v -run TestE2E_GoldenPathScenario ./test/integration/...
+```
+
+
 
 
 

@@ -129,6 +129,13 @@ func NewTaskManager(opts TaskManagerOptions) *TaskManager {
 	return tm
 }
 
+// WorkloadLogger returns the TaskManager's workload logger.
+func (tm *TaskManager) WorkloadLogger() *logs.WorkloadLogger {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	return tm.workloadLogger
+}
+
 // AssignTask accepts, validates, and starts a task assignment.
 func (tm *TaskManager) AssignTask(ctx context.Context, assignment TaskAssignment) error {
 	if assignment.TaskID == "" {

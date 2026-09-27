@@ -326,6 +326,28 @@ func (h *ClusterHarness) StopWorker(workerID id.ID) error {
 	return nil
 }
 
+// InspectEvents retrieves cluster audit events.
+func (h *ClusterHarness) InspectEvents(limit int) ([]*models.Event, error) {
+	return h.Store.Events().List(h.ctx, limit)
+}
+
+// CollectAllLogs aggregates logs across all active worker task managers.
+func (h *ClusterHarness) CollectAllLogs(serviceID id.ID) []logs.LogEntry {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	var allLogs []logs.LogEntry
+	for _, wn := range h.Workers {
+		if wn.TaskManager != nil && wn.TaskManager.WorkloadLogger() != nil {
+			entries := wn.TaskManager.WorkloadLogger().ReadFilteredLogs(logs.LogFilter{
+				ServiceID: serviceID,
+			}, nil)
+			allLogs = append(allLogs, entries...)
+		}
+	}
+	return allLogs
+}
+
 // Teardown cleanly stops all workers, control plane, API server, and closes store.
 func (h *ClusterHarness) Teardown() {
 	h.mu.Lock()
@@ -351,3 +373,4 @@ func (h *ClusterHarness) Teardown() {
 		_ = h.Store.Close()
 	}
 }
+
