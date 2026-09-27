@@ -34,6 +34,7 @@ func DefaultReconcilerConfig() ReconcilerConfig {
 // and automatic rescheduling of orphaned tasks on failed/lost worker nodes.
 type Reconciler struct {
 	mu          sync.RWMutex
+	reconcileMu sync.Mutex
 	cfg         ReconcilerConfig
 	store       state.Store
 	scheduler   scheduler.Scheduler
@@ -129,6 +130,9 @@ type ReconciliationSummary struct {
 
 // ReconcileAll runs an idempotent convergence pass over all services in the cluster.
 func (r *Reconciler) ReconcileAll(ctx context.Context) (*ReconciliationSummary, error) {
+	r.reconcileMu.Lock()
+	defer r.reconcileMu.Unlock()
+
 	tracer := otel.GetTracer("cloudx.controlplane.reconciler")
 	ctx, span := tracer.Start(ctx, "reconcile.pass",
 		otel.WithSpanKind(otel.SpanKindInternal),
