@@ -15,9 +15,10 @@ var (
 	secretKeyValueRegex = regexp.MustCompile(`(?i)\b(password|secret|token|api_key|apikey|private_key|jwt|database_url|db_password)\s*[:=]\s*["']?([^"'\s,;]+)["']?`)
 	jwtRegex            = regexp.MustCompile(`\beyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b`)
 	uriPasswordRegex    = regexp.MustCompile(`(?i)([a-zA-Z][a-zA-Z0-9+.-]*://[^:]+:)([^@]+)(@)`)
+	awsAccessKeyRegex   = regexp.MustCompile(`\bAKIA[0-9A-Z]{16}:[a-zA-Z0-9/+=]{40}\b`)
 )
 
-// RedactString scans any text and redacts credentials, bootstrap tokens, JWTs, URI passwords, and private keys.
+// RedactString scans any text and redacts credentials, bootstrap tokens, JWTs, URI passwords, AWS keys, and private keys.
 func RedactString(input string) string {
 	if input == "" {
 		return input
@@ -27,6 +28,7 @@ func RedactString(input string) string {
 	out = bearerTokenRegex.ReplaceAllString(out, "${1}[REDACTED]")
 	out = jwtRegex.ReplaceAllString(out, "[REDACTED_JWT]")
 	out = uriPasswordRegex.ReplaceAllString(out, "${1}[REDACTED]${3}")
+	out = awsAccessKeyRegex.ReplaceAllString(out, "[REDACTED_AWS_KEY]")
 	out = secretKeyValueRegex.ReplaceAllString(out, "${1}=[REDACTED]")
 	return out
 }
