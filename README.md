@@ -769,19 +769,26 @@ CloudX implements strict defensive engineering guarantees verified across 8 core
 go test -v -run TestSecurityAudit_CompleteVectors ./internal/auth/...
 ```
 
+---
 
+### 26. Final System Functional Audit (Phase 84)
 
+Phase 84 verifies all 28 core subsystem capabilities under automated integration and cluster lifecycle testing:
 
+1. **Cluster Initialization**: Cold SQLite schema bootstrapping and constraint validation.
+2. **Worker Lifecycle**: Startup, registration, and discovery handshake.
+3. **Heartbeat & Failure Detection**: Node state degradation (`READY` → `SUSPECTED` → `UNHEALTHY` → `LOST`).
+4. **Native Execution**: Native OS process runtime, arguments, env injection, and exit code capture.
+5. **Service Management**: Desired-state deployment, dynamic scaling (2 → 3 replicas), and zero-downtime rolling updates.
+6. **Self-Healing**: Automatic crash detection and reconciliation shortfall recovery.
+7. **Deployments & Rollbacks**: Immutable deployment histories and instant zero-downtime rollbacks.
+8. **Batch Jobs & Volumes**: Scheduled batch job execution and local persistent volume attachment.
+9. **Service Discovery & Networking**: Port bookkeeping and health-filtered endpoint registry lookups.
+10. **Observability & Diagnostics**: Event audit trail, ring buffer log streaming, metrics collectors, and 9-vector cluster doctor diagnostics (`cloudx diagnose`).
 
-
-
-
-
-
-
-
-
-
-
+```bash
+# Execute master functional audit verification suite
+go test -v -run TestFunctionalAudit_CompleteSystemSuite ./test/integration/...
+```
 
 
