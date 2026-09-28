@@ -606,6 +606,23 @@ For system design interviews and architectural deep-dives, consult the [Design D
 - **Why Deterministic Rule-Based Scheduling?**: Full placement explainability (`ScoreBreakdown`), anti-affinity spreading, and resource packing.
 - **Why Level-Triggered Reconciliation?**: Resilient state convergence with zero event loss.
 
+---
+
+### 17. Troubleshooting & Diagnostics Guide (Phase 75)
+
+For rapid operational issue resolution, consult the [Troubleshooting & Diagnostics Guide](docs/TROUBLESHOOTING_GUIDE.md), featuring resolution paths for 10 common failure scenarios:
+- **Control Plane Unreachable**: Socket checks, port binding conflicts, and daemon restart procedures.
+- **Worker Join Failures**: Node ID collisions, firewall blocks, and mTLS certificate verification.
+- **Worker Lost Transitions**: Heartbeat timeout progression (`READY` $\rightarrow$ `SUSPECTED` $\rightarrow$ `UNHEALTHY` $\rightarrow$ `LOST`), task evictions, and reconnection healing.
+- **Workload CrashLoopBackOff**: Process exit codes (e.g. exit code 137 OOM), missing binaries, and RAM limits.
+- **Health Check Failures**: Tuning probe delays, route validation, and timeout thresholds.
+- **Stuck Deployments**: Canary probe failure diagnosis and automated rollbacks.
+- **Rollback Failures**: History revision lookups and declarative patch manifests.
+- **Volume & Path Traversal Conflicts**: Path traversal attack prevention (`../`) and exclusive lock contention.
+- **Port Allocation Collisions**: Static port conflicts and dynamic port pool (`30000–32767`) expansion.
+- **Resource Exhaustion**: Capacity bottleneck analysis and worker scaling.
+
+
 
 
 
