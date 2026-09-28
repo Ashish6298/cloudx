@@ -24,7 +24,7 @@ coverage.txt
 *.sqlite
 *.sqlite3
 *.log
-logs/
+/logs/
 .cloudx/
 
 # Environment files and credentials / secrets
