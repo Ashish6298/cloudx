@@ -737,6 +737,19 @@ curl -fsSL https://github.com/cloudx-org/cloudx/releases/download/v1.0.0/cloudx_
 go run scripts/package_release.go
 ```
 
+---
+
+### 24. Versioning & Compatibility Strategy (Phase 82)
+
+For guidelines on API guarantees, schema migrations, and upgrade workflows, consult the [Versioning & Compatibility Strategy](docs/COMPATIBILITY.md), detailing:
+- **Semantic Versioning Scheme**: `MAJOR.MINOR.PATCH` rules for zero state corruption.
+- **CLI & Output Stability**: Flag deprecation policies and machine-readable `--output json|yaml` guarantees.
+- **gRPC Protocol Contracts**: Protobuf field tag immutability and package namespaces (`cloudx.v1`).
+- **SQLite Schema Evolution**: Transactional, additive migrations via `schema_migrations` with `PRAGMA integrity_check`.
+- **$N-1$ Interoperability**: Forward and backward compatibility between control planes and worker nodes.
+- **Safe Upgrade Protocols**: Control plane-first and rolling worker upgrade procedures.
+
+
 
 
 
