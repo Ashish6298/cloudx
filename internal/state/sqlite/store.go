@@ -32,7 +32,7 @@ func Open(ctx context.Context, dbPath string) (*Store, error) {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create database directory: %w", err)
 		}
-		dsn = fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)", dbPath)
+		dsn = fmt.Sprintf("%s?_pragma=busy_timeout(15000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)", dbPath)
 	}
 
 	db, err := sql.Open("sqlite", dsn)

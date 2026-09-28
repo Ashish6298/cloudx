@@ -46,7 +46,7 @@ func newFailKillProcessCmd() *cobra.Command {
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -95,7 +95,7 @@ func newFailStopWorkerCmd() *cobra.Command {
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -146,7 +146,7 @@ func newFailBreakHealthCmd() *cobra.Command {
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -198,7 +198,7 @@ func newFailDelayHeartbeatCmd() *cobra.Command {
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -227,7 +227,7 @@ func newFailDelayHeartbeatCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().DurationVarP(&delay, "delay", "d", 45*time.Second, "Duration to backdate heartbeat")
+	cmd.Flags().DurationVarP(&delay, "delay", "d", 430*time.Second, "Duration to backdate heartbeat")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output result as JSON")
 	return cmd
 }
@@ -250,7 +250,7 @@ func newFailExhaustResourcesCmd() *cobra.Command {
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)

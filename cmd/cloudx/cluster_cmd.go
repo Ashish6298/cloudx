@@ -120,7 +120,7 @@ func newClusterInitCmd() *cobra.Command {
 
 			// 2. Initialize database
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -196,7 +196,7 @@ and node-by-node resource utilization.`,
 			}
 
 			// Read cluster entities from state store
-			dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			dbCtx, dbCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer dbCancel()
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
@@ -413,7 +413,7 @@ func newClusterNodesCmd() *cobra.Command {
 
 			if len(items) == 0 {
 				// Fallback to local store
-				dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				dbCtx, dbCancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer dbCancel()
 
 				dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")

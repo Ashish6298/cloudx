@@ -151,7 +151,7 @@ func newVolumeListCmd() *cobra.Command {
 			defer cleanup()
 			_ = store
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
 			defer cancel()
 
 			vols, err := cp.ListVolumes(ctx)
@@ -219,7 +219,7 @@ Examples:
 			defer cleanup()
 			_ = store
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
 			defer cancel()
 
 			result, err := cp.InspectVolume(ctx, nameOrID)
