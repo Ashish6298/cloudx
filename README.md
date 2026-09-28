@@ -564,6 +564,22 @@ CloudX includes a fully automated 17-step **Golden-Path End-to-End Test Suite** 
 go test -v -run TestE2E_GoldenPathScenario ./test/integration/...
 ```
 
+---
+
+### 14. Architecture Documentation (Phase 72)
+
+For deep technical insights into CloudX internals, consult the [Comprehensive Architecture Guide](docs/ARCHITECTURE.md), covering:
+- **System Overview & Principles**: Local-first runtime, zero CGO, declarative state loops.
+- **Topological Architecture**: Multi-worker & control plane system diagram.
+- **Subsystem Breakdown**: Reconciler, Scheduler, Native Process Runtime, Volume Manager, and Job Engine.
+- **State Model & Storage**: SQLite WAL transactional database schema and ER diagrams.
+- **Continuous Reconciliation**: Desired-state convergence loop mechanics.
+- **Networking & Discovery**: Dynamic port allocator (`30000–32767`), conflict avoidance, and service registry.
+- **Fault Recovery**: Multi-tier failure detector state machine, node evictions, and rolling deployment auto-rollbacks.
+- **Security & Boundaries**: mTLS PKI, permission isolation, path-traversal guards, and secret redaction.
+- **Observability**: Prometheus metrics collectors, OpenTelemetry tracing spans, and diagnostic probes.
+
+
 
 
 
