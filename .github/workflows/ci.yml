@@ -59,7 +59,7 @@ jobs:
 
       - name: Run Unit & Subsystem Tests
         shell: bash
-        run: go test -v -timeout 5m $(go list ./... | grep -v '/test/integration')
+        run: go test -v -timeout 5m ./cmd/... ./internal/... ./proto/...
 
       - name: Run Integration Tests
         shell: bash
