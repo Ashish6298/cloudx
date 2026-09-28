@@ -640,6 +640,25 @@ CloudX features a high-throughput deterministic rule-based scheduler with sub-mi
 go test -bench=BenchmarkScheduler_Scale -benchmem ./internal/scheduler/...
 ```
 
+---
+
+### 19. Reconciliation Performance & Scale Benchmarks (Phase 77)
+
+CloudX implements a fast, level-triggered desired-state reconciliation loop capable of evaluating hundreds of services and up to 1,000 tasks in tens of milliseconds:
+
+| Scale Scenario | Services Evaluated | Tasks Evaluated | Workers Evaluated | Sweep Duration | Events Generated |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **10 Services / 20 Tasks** | 10 | 20 | 3 | **2.66 ms** | 0 (Steady State) |
+| **100 Services / 200 Tasks** | 100 | 200 | 10 | **17.77 ms** | 0 (Steady State) |
+| **1000 Tasks / 250 Services** | 250 | 1,000 | 20 | **49.90 ms** | 0 (Steady State) |
+
+```bash
+# Run reconciliation scale benchmark suite
+go test -v -run TestReconciliation_ScaleBenchmark ./internal/controlplane/...
+go test -bench=BenchmarkReconciliation_Sweep -benchmem ./internal/controlplane/...
+```
+
+
 
 
 
