@@ -593,6 +593,20 @@ For day-to-day operations, manifest templates, and CLI guides, consult the [Deve
 - **Logs, Events & Rollbacks**: Live streaming logs, audit trails, and instant rollbacks.
 - **Diagnostics**: Automated 9-vector health checks via `cloudx diagnose`.
 
+---
+
+### 16. Design Decisions & Technical Rationale (Phase 74)
+
+For system design interviews and architectural deep-dives, consult the [Design Decisions Guide](docs/DESIGN_DECISIONS.md), addressing:
+- **Why Native OS Process Runtime First?**: Sub-millisecond cold starts (< 5ms), zero container daemon dependencies, and portable process isolation.
+- **Why Not Kubernetes?**: Eliminating the heavy operational tax (etcd quorums, multi-component control planes, 500MB+ RAM) in favor of lightweight local-first orchestration (< 35MB RAM).
+- **Why SQLite WAL?**: Embedded ACID persistence, zero-CGO compilation, and single-file portability.
+- **Why gRPC & Protobuf?**: Strongly typed contracts, binary efficiency, and HTTP/2 bidirectional multiplexing.
+- **Why Desired vs. Actual State?**: Inherent self-healing, network partition tolerance, and declarative idempotency.
+- **Why Deterministic Rule-Based Scheduling?**: Full placement explainability (`ScoreBreakdown`), anti-affinity spreading, and resource packing.
+- **Why Level-Triggered Reconciliation?**: Resilient state convergence with zero event loss.
+
+
 
 
 
