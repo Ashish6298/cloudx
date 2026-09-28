@@ -693,6 +693,27 @@ go test -v -run TestDatabaseHardening_ ./internal/state/sqlite/...
 go test -bench=BenchmarkDatabase_TransactionalWrites -benchmem ./internal/state/sqlite/...
 ```
 
+---
+
+### 22. Cross-Platform Builds & Target Architectures (Phase 80)
+
+CloudX is built with pure Go (`CGO_ENABLED=0`) and natively cross-compiles for tier-1 developer platforms:
+
+| OS Target | Architecture | CLI Binary (`cloudx`) | Worker Binary (`cloudx-worker`) |
+| :--- | :--- | :--- | :--- |
+| **Windows** | `amd64` (x86_64) | `bin/dist/windows_amd64/cloudx.exe` | `bin/dist/windows_amd64/cloudx-worker.exe` |
+| **Windows** | `arm64` | `bin/dist/windows_arm64/cloudx.exe` | `bin/dist/windows_arm64/cloudx-worker.exe` |
+| **Linux** | `amd64` (x86_64) | `bin/dist/linux_amd64/cloudx` | `bin/dist/linux_amd64/cloudx-worker` |
+| **Linux** | `arm64` (aarch64) | `bin/dist/linux_arm64/cloudx` | `bin/dist/linux_arm64/cloudx-worker` |
+| **macOS** | `amd64` (Intel) | `bin/dist/darwin_amd64/cloudx` | `bin/dist/darwin_amd64/cloudx-worker` |
+| **macOS** | `arm64` (Apple Silicon) | `bin/dist/darwin_arm64/cloudx` | `bin/dist/darwin_arm64/cloudx-worker` |
+
+```bash
+# Build all cross-platform targets
+go run scripts/cross_build.go
+```
+
+
 
 
 
