@@ -18,7 +18,7 @@ type VolumeConfigFile struct {
 // VolumeConfig defines the declarative specification of a persistent storage volume.
 type VolumeConfig struct {
 	Name     string            `yaml:"name,omitempty" json:"name,omitempty"`
-	Driver   string            `yaml:"driver,omitempty" json:"driver,omitempty"` // "local" (default)
+	Driver   string            `yaml:"driver,omitempty" json:"driver,omitempty"`     // "local" (default)
 	Location string            `yaml:"location,omitempty" json:"location,omitempty"` // Directory path on worker/host
 	Size     string            `yaml:"size,omitempty" json:"size,omitempty"`         // e.g. "10GB", "500MB"
 	ReadOnly bool              `yaml:"read_only,omitempty" json:"read_only,omitempty"`

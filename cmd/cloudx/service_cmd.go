@@ -493,11 +493,11 @@ Examples:
 			}
 
 			type restartResult struct {
-				ServiceID    id.ID                         `json:"service_id"`
-				ServiceName  string                        `json:"service_name"`
-				StoppedTasks int                           `json:"stopped_tasks"`
+				ServiceID    id.ID                              `json:"service_id"`
+				ServiceName  string                             `json:"service_name"`
+				StoppedTasks int                                `json:"stopped_tasks"`
 				Summary      controlplane.ReconciliationSummary `json:"summary"`
-				RestartedAt  time.Time                     `json:"restarted_at"`
+				RestartedAt  time.Time                          `json:"restarted_at"`
 			}
 
 			res := restartResult{
@@ -528,13 +528,13 @@ Examples:
 
 func newServiceLogsCmd() *cobra.Command {
 	var (
-		follow         bool
-		tailLines      int
-		taskIDStr      string
+		follow          bool
+		tailLines       int
+		taskIDStr       string
 		deploymentIDStr string
-		workerIDStr    string
-		sinceStr       string
-		jsonOutput     bool
+		workerIDStr     string
+		sinceStr        string
+		jsonOutput      bool
 	)
 
 	cmd := &cobra.Command{
@@ -840,5 +840,3 @@ func printLogEntry(w io.Writer, entry logs.LogEntry, asJSON bool) {
 	}
 	_, _ = fmt.Fprintf(w, "%s %s\n", prefix, entry.Message)
 }
-
-

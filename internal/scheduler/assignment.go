@@ -23,18 +23,18 @@ type Dispatcher interface {
 
 // TaskSpec specifies execution parameters for a task workload.
 type TaskSpec struct {
-	Command         string                  `json:"command"`
-	Args            []string                `json:"args,omitempty"`
-	Environment     map[string]string       `json:"environment,omitempty"`
-	WorkingDir      string                  `json:"working_dir,omitempty"`
-	Runtime         string                  `json:"runtime,omitempty"`
-	RestartPolicy   models.RestartPolicy    `json:"restart_policy,omitempty"`
-	HealthCheck     *spec.HealthCheckConfig `json:"health_check,omitempty"`
-	SpecJSON        string                  `json:"spec_json,omitempty"`
+	Command       string                  `json:"command"`
+	Args          []string                `json:"args,omitempty"`
+	Environment   map[string]string       `json:"environment,omitempty"`
+	WorkingDir    string                  `json:"working_dir,omitempty"`
+	Runtime       string                  `json:"runtime,omitempty"`
+	RestartPolicy models.RestartPolicy    `json:"restart_policy,omitempty"`
+	HealthCheck   *spec.HealthCheckConfig `json:"health_check,omitempty"`
+	SpecJSON      string                  `json:"spec_json,omitempty"`
 	// RequiredVolumes names volumes the task needs; passed through to scheduling constraints.
-	RequiredVolumes []string                `json:"required_volumes,omitempty"`
+	RequiredVolumes []string `json:"required_volumes,omitempty"`
 	// RequiredPorts names host ports the task needs; passed through to scheduling constraints.
-	RequiredPorts   []int                   `json:"required_ports,omitempty"`
+	RequiredPorts []int `json:"required_ports,omitempty"`
 }
 
 // AssignOptions configures task assignment execution.
@@ -245,9 +245,9 @@ func (ac *AssignmentCoordinator) Assign(ctx context.Context, opts AssignOptions)
 			TaskCount:           workerTaskCount[w.ID],
 			ServiceTaskCounts:   workerServiceTaskCounts[w.ID],
 			// Storage affinity: populate volumes that physically reside on this worker
-			VolumeNames:         workerVolumeNames[w.ID],
+			VolumeNames: workerVolumeNames[w.ID],
 			// Port mappings: populate host ports currently in use on this worker
-			AllocatedPorts:      workerAllocatedPorts[w.ID],
+			AllocatedPorts: workerAllocatedPorts[w.ID],
 		}
 	}
 

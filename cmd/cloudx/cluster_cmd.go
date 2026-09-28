@@ -237,10 +237,10 @@ and node-by-node resource utilization.`,
 
 			// Gather node/worker telemetry info
 			type NodeStatusInfo struct {
-				Node   string  `json:"node"`
-				CPU    string  `json:"cpu"`
-				Memory string  `json:"memory"`
-				Status string  `json:"status"`
+				Node   string `json:"node"`
+				CPU    string `json:"cpu"`
+				Memory string `json:"memory"`
+				Status string `json:"status"`
 			}
 
 			// Map workers by NodeID or Worker ID
@@ -454,4 +454,3 @@ func newClusterNodesCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output cluster nodes in JSON format")
 	return cmd
 }
-

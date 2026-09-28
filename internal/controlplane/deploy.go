@@ -731,8 +731,8 @@ func (cp *ControlPlane) InspectService(ctx context.Context, nameOrID string) (*S
 
 // ScaleResult details the outcome of a service scaling operation.
 type ScaleResult struct {
-	ServiceID       id.ID                  `json:"service_id"`
-	ServiceName     string                 `json:"service_name"`
+	ServiceID        id.ID                 `json:"service_id"`
+	ServiceName      string                `json:"service_name"`
 	PreviousReplicas int                   `json:"previous_replicas"`
 	DesiredReplicas  int                   `json:"desired_replicas"`
 	Summary          ReconciliationSummary `json:"summary"`
@@ -836,5 +836,3 @@ func (cp *ControlPlane) GetServiceLogs(ctx context.Context, serviceNameOrID stri
 	entries := logger.ReadFilteredLogs(filter, taskIDs)
 	return entries, taskIDs, nil
 }
-
-

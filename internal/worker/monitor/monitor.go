@@ -9,16 +9,16 @@ import (
 
 // ResourceMetrics contains the system resource telemetry of a worker machine.
 type ResourceMetrics struct {
-	Timestamp       time.Time `json:"timestamp"`
-	CPUUsagePercent float64   `json:"cpu_usage_percent"`
-	MemoryUsedBytes int64     `json:"memory_used_bytes"`
-	MemoryAvailBytes int64    `json:"memory_avail_bytes"`
-	TotalMemoryBytes int64    `json:"total_memory_bytes"`
-	ProcessCount    int       `json:"process_count"`
-	SystemLoad1     float64   `json:"system_load_1"`
-	SystemLoad5     float64   `json:"system_load_5"`
-	SystemLoad15    float64   `json:"system_load_15"`
-	Platform        string    `json:"platform"`
+	Timestamp        time.Time `json:"timestamp"`
+	CPUUsagePercent  float64   `json:"cpu_usage_percent"`
+	MemoryUsedBytes  int64     `json:"memory_used_bytes"`
+	MemoryAvailBytes int64     `json:"memory_avail_bytes"`
+	TotalMemoryBytes int64     `json:"total_memory_bytes"`
+	ProcessCount     int       `json:"process_count"`
+	SystemLoad1      float64   `json:"system_load_1"`
+	SystemLoad5      float64   `json:"system_load_5"`
+	SystemLoad15     float64   `json:"system_load_15"`
+	Platform         string    `json:"platform"`
 }
 
 // ToJSON serializes the ResourceMetrics into a JSON byte array.

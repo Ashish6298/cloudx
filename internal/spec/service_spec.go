@@ -22,15 +22,15 @@ type ServiceConfigFile struct {
 
 // ServiceConfig defines the declarative specification of a single service workload.
 type ServiceConfig struct {
-	Name          string             `yaml:"name,omitempty" json:"name,omitempty"`
-	Version       string             `yaml:"version,omitempty" json:"version,omitempty"`
-	Artifact      string             `yaml:"artifact,omitempty" json:"artifact,omitempty"`
-	Command       string             `yaml:"command" json:"command"`
-	Args          []string           `yaml:"args,omitempty" json:"args,omitempty"`
-	Environment   map[string]string  `yaml:"environment,omitempty" json:"environment,omitempty"`
-	WorkingDir    string             `yaml:"working_dir,omitempty" json:"working_dir,omitempty"`
-	Replicas      *int               `yaml:"replicas,omitempty" json:"replicas,omitempty"`
-	Runtime       string             `yaml:"runtime,omitempty" json:"runtime,omitempty"`
+	Name           string                `yaml:"name,omitempty" json:"name,omitempty"`
+	Version        string                `yaml:"version,omitempty" json:"version,omitempty"`
+	Artifact       string                `yaml:"artifact,omitempty" json:"artifact,omitempty"`
+	Command        string                `yaml:"command" json:"command"`
+	Args           []string              `yaml:"args,omitempty" json:"args,omitempty"`
+	Environment    map[string]string     `yaml:"environment,omitempty" json:"environment,omitempty"`
+	WorkingDir     string                `yaml:"working_dir,omitempty" json:"working_dir,omitempty"`
+	Replicas       *int                  `yaml:"replicas,omitempty" json:"replicas,omitempty"`
+	Runtime        string                `yaml:"runtime,omitempty" json:"runtime,omitempty"`
 	Resources      ResourceConfig        `yaml:"resources,omitempty" json:"resources,omitempty"`
 	RestartPolicy  *RestartPolicySpec    `yaml:"restart_policy,omitempty" json:"restart_policy,omitempty"`
 	HealthCheck    *HealthCheckConfig    `yaml:"health_check,omitempty" json:"health_check,omitempty"`
@@ -42,7 +42,7 @@ type ServiceConfig struct {
 
 // UpdateStrategyConfig defines parameters for rollout strategies.
 type UpdateStrategyConfig struct {
-	Type          string `yaml:"type,omitempty" json:"type,omitempty"` // "rolling", "recreate"
+	Type           string `yaml:"type,omitempty" json:"type,omitempty"` // "rolling", "recreate"
 	MaxUnavailable int    `yaml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
 	MaxSurge       int    `yaml:"max_surge,omitempty" json:"max_surge,omitempty"`
 }

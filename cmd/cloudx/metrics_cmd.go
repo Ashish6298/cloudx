@@ -108,9 +108,9 @@ Examples:
 
 			if isJSONOutput(cmd, jsonOutput) {
 				type jsonMetricsOutput struct {
-					CollectedAt  string               `json:"collected_at"`
-					Summary      *metrics.CollectResult `json:"summary"`
-					Metrics      []metrics.MetricValue  `json:"metrics"`
+					CollectedAt string                 `json:"collected_at"`
+					Summary     *metrics.CollectResult `json:"summary"`
+					Metrics     []metrics.MetricValue  `json:"metrics"`
 				}
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")

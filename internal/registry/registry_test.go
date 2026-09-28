@@ -369,4 +369,3 @@ func TestInMemoryRegistry_NetworkLookup(t *testing.T) {
 		t.Fatalf("expected 0 endpoints in secure-net after deregistering ep1, got %d", len(secureAfter))
 	}
 }
-

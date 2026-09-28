@@ -26,7 +26,7 @@ const (
 
 // UpdateStrategySpec defines rollout strategy parameters.
 type UpdateStrategySpec struct {
-	Type          string `json:"type" yaml:"type"` // "rolling", "recreate"
+	Type           string `json:"type" yaml:"type"` // "rolling", "recreate"
 	MaxUnavailable int    `json:"max_unavailable" yaml:"max_unavailable"`
 	MaxSurge       int    `json:"max_surge" yaml:"max_surge"`
 }

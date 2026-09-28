@@ -207,7 +207,7 @@ func TestCanFit_VolumeAffinity_CombinedWithOtherConstraints(t *testing.T) {
 		TaskID:          id.NewTaskID(),
 		CPU:             1.0,
 		Memory:          512 * 1024 * 1024,
-		RequiredRuntime: "docker",  // incompatible
+		RequiredRuntime: "docker", // incompatible
 		RequiredVolumes: []string{"data"},
 	}
 

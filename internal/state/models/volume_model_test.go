@@ -64,9 +64,9 @@ func TestVolumeRecord_Serialization(t *testing.T) {
 			SizeBytes:     20 * 1024 * 1024 * 1024,
 			HumanReadable: "20GB",
 		},
-		OwnerRef: "mariadb-service",
-		WorkerID: id.NewWorkerID(),
-		State:    VolumeStateInUse,
+		OwnerRef:  "mariadb-service",
+		WorkerID:  id.NewWorkerID(),
+		State:     VolumeStateInUse,
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}

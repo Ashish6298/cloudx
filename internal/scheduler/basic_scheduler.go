@@ -17,14 +17,14 @@ type Scheduler interface {
 
 // ScoreBreakdown provides an explainable and reproducible decomposition of a node's placement score.
 type ScoreBreakdown struct {
-	CPUScore           float64 `json:"cpu_score"`             // 0 to 40 pts (Remaining unallocated CPU ratio)
-	MemoryScore        float64 `json:"memory_score"`          // 0 to 40 pts (Remaining unallocated RAM ratio)
-	PressureScore      float64 `json:"pressure_score"`        // 0 to 10 pts (Average CPU/Memory pressure inversion)
-	TaskCountScore     float64 `json:"task_count_score"`      // 0 to 10 pts (Workload spread factor)
-	ServiceSpreadScore float64 `json:"service_spread_score"`  // 0 to 50 pts (Replica anti-affinity spread)
-	AffinityScore      float64 `json:"affinity_score"`        // 0 to 20 pts (Tag and label matching bonus)
-	NodeStateScore     float64 `json:"node_state_score"`      // 0 to 10 pts (Node readiness and health stability)
-	TotalScore         float64 `json:"total_score"`           // Aggregate score
+	CPUScore           float64 `json:"cpu_score"`            // 0 to 40 pts (Remaining unallocated CPU ratio)
+	MemoryScore        float64 `json:"memory_score"`         // 0 to 40 pts (Remaining unallocated RAM ratio)
+	PressureScore      float64 `json:"pressure_score"`       // 0 to 10 pts (Average CPU/Memory pressure inversion)
+	TaskCountScore     float64 `json:"task_count_score"`     // 0 to 10 pts (Workload spread factor)
+	ServiceSpreadScore float64 `json:"service_spread_score"` // 0 to 50 pts (Replica anti-affinity spread)
+	AffinityScore      float64 `json:"affinity_score"`       // 0 to 20 pts (Tag and label matching bonus)
+	NodeStateScore     float64 `json:"node_state_score"`     // 0 to 10 pts (Node readiness and health stability)
+	TotalScore         float64 `json:"total_score"`          // Aggregate score
 }
 
 // Explanation provides a human-readable explanation of why a worker was selected or scored.

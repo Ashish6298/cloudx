@@ -15,9 +15,11 @@ type mockFailingComponent struct {
 	name string
 }
 
-func (m *mockFailingComponent) Name() string                { return m.name }
-func (m *mockFailingComponent) Start(ctx context.Context) error { return fmt.Errorf("simulated boot error") }
-func (m *mockFailingComponent) Stop(ctx context.Context) error  { return nil }
+func (m *mockFailingComponent) Name() string { return m.name }
+func (m *mockFailingComponent) Start(ctx context.Context) error {
+	return fmt.Errorf("simulated boot error")
+}
+func (m *mockFailingComponent) Stop(ctx context.Context) error { return nil }
 
 func TestControlPlaneStartupAndShutdown(t *testing.T) {
 	ctx := context.Background()

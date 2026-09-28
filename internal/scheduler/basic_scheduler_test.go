@@ -131,20 +131,20 @@ func TestBasicScheduler_DeterministicSelection(t *testing.T) {
 
 	// Two identical workers with deterministic fixed IDs
 	w1 := &WorkerCapacity{
-		WorkerID:        id.ID("worker-aaaa"),
-		Hostname:        "node-a",
-		Status:          "READY",
-		CPUTotal:        4.0,
-		MemoryTotal:     8 * 1024 * 1024 * 1024,
-		TaskCount:       0,
+		WorkerID:    id.ID("worker-aaaa"),
+		Hostname:    "node-a",
+		Status:      "READY",
+		CPUTotal:    4.0,
+		MemoryTotal: 8 * 1024 * 1024 * 1024,
+		TaskCount:   0,
 	}
 	w2 := &WorkerCapacity{
-		WorkerID:        id.ID("worker-zzzz"),
-		Hostname:        "node-z",
-		Status:          "READY",
-		CPUTotal:        4.0,
-		MemoryTotal:     8 * 1024 * 1024 * 1024,
-		TaskCount:       0,
+		WorkerID:    id.ID("worker-zzzz"),
+		Hostname:    "node-z",
+		Status:      "READY",
+		CPUTotal:    4.0,
+		MemoryTotal: 8 * 1024 * 1024 * 1024,
+		TaskCount:   0,
 	}
 
 	// Run 20 iterations in different input slices to verify order independence & deterministic selection

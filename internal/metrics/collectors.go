@@ -96,14 +96,14 @@ func (m *ControlPlaneMetrics) ObserveScheduling(latency time.Duration, failed bo
 //   - active task count (gauge)
 //   - process restarts (counter)
 type WorkerMetrics struct {
-	CPUUsagePercent    *Gauge   // [0, 100]
-	MemoryUsedBytes    *Gauge   // bytes currently allocated
-	MemoryAvailBytes   *Gauge   // bytes currently available
-	MemoryTotalBytes   *Gauge   // total physical RAM
-	ActiveTaskCount    *Gauge   // tasks in non-terminal states
-	ProcessRestarts    *Counter // cumulative task/process restart events
-	HeartbeatsSent     *Counter // heartbeat RPCs dispatched to control plane
-	HeartbeatFailures  *Counter // heartbeat RPCs that returned an error
+	CPUUsagePercent   *Gauge   // [0, 100]
+	MemoryUsedBytes   *Gauge   // bytes currently allocated
+	MemoryAvailBytes  *Gauge   // bytes currently available
+	MemoryTotalBytes  *Gauge   // total physical RAM
+	ActiveTaskCount   *Gauge   // tasks in non-terminal states
+	ProcessRestarts   *Counter // cumulative task/process restart events
+	HeartbeatsSent    *Counter // heartbeat RPCs dispatched to control plane
+	HeartbeatFailures *Counter // heartbeat RPCs that returned an error
 }
 
 // NewWorkerMetrics creates a set of worker metrics registered in reg.
@@ -213,10 +213,10 @@ type ClusterMetrics struct {
 
 	// Per-service and per-worker metrics are created dynamically; use
 	// GetOrCreateServiceMetrics / GetOrCreateWorkerMetrics.
-	svcMu   sync.RWMutex
-	svcMap  map[string]*ServiceMetrics  // key: serviceID
-	wkMu    sync.RWMutex
-	wkMap   map[string]*WorkerMetrics   // key: workerID
+	svcMu  sync.RWMutex
+	svcMap map[string]*ServiceMetrics // key: serviceID
+	wkMu   sync.RWMutex
+	wkMap  map[string]*WorkerMetrics // key: workerID
 
 	// Runtime uptime
 	startedAt int64 // Unix nano — used to compute UptimeSeconds gauge

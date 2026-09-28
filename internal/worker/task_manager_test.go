@@ -539,4 +539,3 @@ func TestTaskManager_HealthProbe_DistinguishProcessRunningFromHealthy(t *testing
 		t.Fatalf("expected control plane report for state UNHEALTHY")
 	}
 }
-

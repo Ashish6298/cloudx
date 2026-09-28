@@ -16,20 +16,20 @@ import (
 type WorkerHealthStatus string
 
 const (
-	StatusReady      WorkerHealthStatus = "READY"
-	StatusDraining   WorkerHealthStatus = "DRAINING"
-	StatusEmpty      WorkerHealthStatus = "EMPTY"
-	StatusSuspected  WorkerHealthStatus = "SUSPECTED"
-	StatusUnhealthy  WorkerHealthStatus = "UNHEALTHY"
-	StatusLost       WorkerHealthStatus = "LOST"
+	StatusReady     WorkerHealthStatus = "READY"
+	StatusDraining  WorkerHealthStatus = "DRAINING"
+	StatusEmpty     WorkerHealthStatus = "EMPTY"
+	StatusSuspected WorkerHealthStatus = "SUSPECTED"
+	StatusUnhealthy WorkerHealthStatus = "UNHEALTHY"
+	StatusLost      WorkerHealthStatus = "LOST"
 )
 
 // FailureDetectorConfig configures the thresholds and timings for worker failure detection.
 type FailureDetectorConfig struct {
-	CheckInterval     time.Duration // Frequency of health evaluation sweep (e.g. 1s)
-	SuspectedTimeout  time.Duration // Time without heartbeat before transitioning READY -> SUSPECTED (e.g. 3 * interval)
-	UnhealthyTimeout  time.Duration // Time without heartbeat before transitioning SUSPECTED -> UNHEALTHY (e.g. 6 * interval)
-	LostTimeout       time.Duration // Time without heartbeat before transitioning UNHEALTHY -> LOST (e.g. 10 * interval)
+	CheckInterval    time.Duration // Frequency of health evaluation sweep (e.g. 1s)
+	SuspectedTimeout time.Duration // Time without heartbeat before transitioning READY -> SUSPECTED (e.g. 3 * interval)
+	UnhealthyTimeout time.Duration // Time without heartbeat before transitioning SUSPECTED -> UNHEALTHY (e.g. 6 * interval)
+	LostTimeout      time.Duration // Time without heartbeat before transitioning UNHEALTHY -> LOST (e.g. 10 * interval)
 }
 
 // DefaultFailureDetectorConfig returns production defaults based on a 5s heartbeat interval.

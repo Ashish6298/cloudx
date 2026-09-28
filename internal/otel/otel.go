@@ -539,13 +539,13 @@ type noopSpan struct{}
 
 var noopSpanInstance = &noopSpan{}
 
-func (n *noopSpan) SpanContext() SpanContext                  { return SpanContext{} }
-func (n *noopSpan) IsRecording() bool                         { return false }
-func (n *noopSpan) SetStatus(code StatusCode, desc string)    {}
-func (n *noopSpan) SetAttributes(attrs ...Attribute)          {}
-func (n *noopSpan) AddEvent(name string, attrs ...Attribute)  {}
-func (n *noopSpan) RecordError(err error)                     {}
-func (n *noopSpan) End()                                      {}
+func (n *noopSpan) SpanContext() SpanContext                 { return SpanContext{} }
+func (n *noopSpan) IsRecording() bool                        { return false }
+func (n *noopSpan) SetStatus(code StatusCode, desc string)   {}
+func (n *noopSpan) SetAttributes(attrs ...Attribute)         {}
+func (n *noopSpan) AddEvent(name string, attrs ...Attribute) {}
+func (n *noopSpan) RecordError(err error)                    {}
+func (n *noopSpan) End()                                     {}
 
 // NoopTracer returns no-op spans with zero overhead.
 type NoopTracer struct{}

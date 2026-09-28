@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	kernel32              = syscall.NewLazyDLL("kernel32.dll")
+	kernel32               = syscall.NewLazyDLL("kernel32.dll")
 	procGlobalMemoryStatus = kernel32.NewProc("GlobalMemoryStatusEx")
 	procGetSystemTimes     = kernel32.NewProc("GetSystemTimes")
 	procCreateToolhelp32   = kernel32.NewProc("CreateToolhelp32Snapshot")

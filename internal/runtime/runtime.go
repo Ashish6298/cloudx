@@ -30,13 +30,13 @@ type ProcessSpec struct {
 
 // ProcessStatus represents the runtime status of a process.
 type ProcessStatus struct {
-	ID        id.ID     `json:"id" yaml:"id"`
-	PID       int       `json:"pid" yaml:"pid"`
-	Running   bool      `json:"running" yaml:"running"`
-	ExitCode  int       `json:"exit_code" yaml:"exit_code"`
-	StartTime time.Time `json:"start_time" yaml:"start_time"`
+	ID        id.ID         `json:"id" yaml:"id"`
+	PID       int           `json:"pid" yaml:"pid"`
+	Running   bool          `json:"running" yaml:"running"`
+	ExitCode  int           `json:"exit_code" yaml:"exit_code"`
+	StartTime time.Time     `json:"start_time" yaml:"start_time"`
 	Duration  time.Duration `json:"duration" yaml:"duration"`
-	Error     string    `json:"error,omitempty" yaml:"error,omitempty"`
+	Error     string        `json:"error,omitempty" yaml:"error,omitempty"`
 }
 
 // LogOptions configures log streaming / reading.

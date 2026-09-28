@@ -40,14 +40,14 @@ type VolumeSizeMetadata struct {
 
 // VolumeConfig defines the creation parameters for a persistent storage volume.
 type VolumeConfig struct {
-	Name      string             `json:"name" yaml:"name"`
-	Driver    VolumeDriver       `json:"driver" yaml:"driver"` // "local", "host"
-	Location  string             `json:"location" yaml:"location"` // host filesystem path / directory
-	Size      VolumeSizeMetadata `json:"size" yaml:"size"`
-	ReadOnly  bool               `json:"read_only,omitempty" yaml:"read_only,omitempty"`
-	OwnerRef  string             `json:"owner_ref,omitempty" yaml:"owner_ref,omitempty"` // Service or Job identifier using this volume
-	WorkerID  id.ID              `json:"worker_id,omitempty" yaml:"worker_id,omitempty"` // Bound node/worker if local storage
-	Labels    map[string]string  `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Name     string             `json:"name" yaml:"name"`
+	Driver   VolumeDriver       `json:"driver" yaml:"driver"`     // "local", "host"
+	Location string             `json:"location" yaml:"location"` // host filesystem path / directory
+	Size     VolumeSizeMetadata `json:"size" yaml:"size"`
+	ReadOnly bool               `json:"read_only,omitempty" yaml:"read_only,omitempty"`
+	OwnerRef string             `json:"owner_ref,omitempty" yaml:"owner_ref,omitempty"` // Service or Job identifier using this volume
+	WorkerID id.ID              `json:"worker_id,omitempty" yaml:"worker_id,omitempty"` // Bound node/worker if local storage
+	Labels   map[string]string  `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
 // ComputeHash generates a deterministic SHA-256 fingerprint for a volume configuration.
@@ -85,18 +85,18 @@ func (c *VolumeConfig) ComputeHash() string {
 // - Owner/reference (bound service or job)
 // - Created timestamp
 type VolumeRecord struct {
-	ID         id.ID        `json:"id"`
-	Name       string       `json:"name"`
-	Driver     VolumeDriver `json:"driver"`
-	Location   string       `json:"location"`
+	ID         id.ID              `json:"id"`
+	Name       string             `json:"name"`
+	Driver     VolumeDriver       `json:"driver"`
+	Location   string             `json:"location"`
 	Size       VolumeSizeMetadata `json:"size"`
-	OwnerRef   string       `json:"owner_ref,omitempty"`
-	WorkerID   id.ID        `json:"worker_id,omitempty"` // Bound worker node for LocalVolume
-	State      VolumeState  `json:"state"`
-	ConfigHash string       `json:"config_hash"`
-	Config     VolumeConfig `json:"config"`
-	CreatedAt  time.Time    `json:"created_at"`
-	UpdatedAt  time.Time    `json:"updated_at"`
+	OwnerRef   string             `json:"owner_ref,omitempty"`
+	WorkerID   id.ID              `json:"worker_id,omitempty"` // Bound worker node for LocalVolume
+	State      VolumeState        `json:"state"`
+	ConfigHash string             `json:"config_hash"`
+	Config     VolumeConfig       `json:"config"`
+	CreatedAt  time.Time          `json:"created_at"`
+	UpdatedAt  time.Time          `json:"updated_at"`
 }
 
 // Validate ensures all required volume fields are populated and valid.
