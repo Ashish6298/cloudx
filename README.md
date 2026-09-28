@@ -713,6 +713,31 @@ CloudX is built with pure Go (`CGO_ENABLED=0`) and natively cross-compiles for t
 go run scripts/cross_build.go
 ```
 
+---
+
+### 23. Release Packaging & Direct Binary Installation (Phase 81)
+
+CloudX publishes standalone distribution packages with embedded version, commit hash, and build timestamp metadata:
+
+| Target Platform | Architecture | Release Archive | Size |
+| :--- | :--- | :--- | :--- |
+| **Windows** | `amd64` (x86_64) | `bin/release/cloudx_v1.0.0_windows_amd64.zip` | ~13.1 MB |
+| **Windows** | `arm64` | `bin/release/cloudx_v1.0.0_windows_arm64.zip` | ~11.7 MB |
+| **Linux** | `amd64` (x86_64) | `bin/release/cloudx_v1.0.0_linux_amd64.tar.gz` | ~12.6 MB |
+| **Linux** | `arm64` (aarch64) | `bin/release/cloudx_v1.0.0_linux_arm64.tar.gz` | ~11.5 MB |
+| **macOS** | `amd64` (Intel) | `bin/release/cloudx_v1.0.0_darwin_amd64.tar.gz` | ~12.9 MB |
+| **macOS** | `arm64` (Apple Silicon) | `bin/release/cloudx_v1.0.0_darwin_arm64.tar.gz` | ~11.9 MB |
+
+#### Installing Pre-Compiled Binaries:
+```bash
+# Linux / macOS
+curl -fsSL https://github.com/cloudx-org/cloudx/releases/download/v1.0.0/cloudx_v1.0.0_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
+
+# Build release packages locally
+go run scripts/package_release.go
+```
+
+
 
 
 
