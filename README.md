@@ -836,3 +836,23 @@ Phase 86 validates 6 fundamental reliability and concurrency invariants under su
 go test -v -run TestReliabilityAudit_Invariants ./test/integration/...
 ```
 
+---
+
+### 29. End-to-End Killer Demo (Phase 87)
+
+Phase 87 provides the primary end-to-end technical demonstration of CloudX across a 3-machine cluster topology (Machine A: Control Plane + Worker A, Machine B: Worker B, Machine C: Worker C):
+
+1. **Multi-Node Cluster Bootstrapping**: Control plane and 3 independent workers join and establish gRPC heartbeats.
+2. **Dynamic Scaling & Placement**: Initial `v1` deployment dynamically scaled from 1 to 5 replicas, distributed across all worker nodes.
+3. **Process Crash Recovery**: Automated crash detection and self-healing task replacement upon OS process death.
+4. **Node Evacuation & Rescheduling**: Complete worker node failure simulation (`LOST` state detection) with automatic orphan workload evacuation and rescheduling.
+5. **Zero-Downtime Rolling Update**: Progressive replica cutover from `v1` to `v2` under update strategy constraints (`maxUnavailable: 1, maxSurge: 1`).
+6. **Canary Fault Injection & Rollback**: Instant rollback to immutable `v1` deployment upon canary failure.
+7. **Cluster Observability & Diagnostics**: Append-only event audit trail inspection, workload logs, and full 9-vector cluster health check via `cloudx diagnose`.
+
+```bash
+# Execute master end-to-end killer demo suite
+go test -v -run TestPhase87_KillerDemo ./test/integration/...
+```
+
+
