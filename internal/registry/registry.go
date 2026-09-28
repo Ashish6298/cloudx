@@ -25,8 +25,8 @@ type Endpoint struct {
 	WorkerID    id.ID     `json:"worker_id"`
 	Host        string    `json:"host"`
 	Port        int       `json:"port"`
-	Address     string    `json:"address"` // Formatted as host:port
-	Protocol    string    `json:"protocol"` // e.g. "tcp", "udp", "http"
+	Address     string    `json:"address"`            // Formatted as host:port
+	Protocol    string    `json:"protocol"`           // e.g. "tcp", "udp", "http"
 	Networks    []string  `json:"networks,omitempty"` // Logical networks this endpoint belongs to
 	Healthy     bool      `json:"healthy"`
 	UpdatedAt   time.Time `json:"updated_at"`

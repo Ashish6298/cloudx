@@ -33,15 +33,15 @@ const (
 	EventDeploymentRolledBack = "DEPLOYMENT_ROLLED_BACK"
 
 	// Task & Process Lifecycle Events
-	EventTaskAssigned        = "TASK_ASSIGNED"
-	EventTaskStarting        = "TASK_STARTING"
-	EventProcessStarted      = "PROCESS_STARTED"
-	EventProcessStopped      = "PROCESS_STOPPED"
-	EventProcessCrashed      = "PROCESS_CRASHED"
-	EventHealthCheckHealthy  = "HEALTH_CHECK_HEALTHY"
-	EventHealthCheckFailed   = "HEALTH_CHECK_FAILED"
-	EventTaskRescheduled     = "TASK_RESCHEDULED"
-	EventTaskCrashLoop       = "TASK_CRASH_LOOP"
+	EventTaskAssigned       = "TASK_ASSIGNED"
+	EventTaskStarting       = "TASK_STARTING"
+	EventProcessStarted     = "PROCESS_STARTED"
+	EventProcessStopped     = "PROCESS_STOPPED"
+	EventProcessCrashed     = "PROCESS_CRASHED"
+	EventHealthCheckHealthy = "HEALTH_CHECK_HEALTHY"
+	EventHealthCheckFailed  = "HEALTH_CHECK_FAILED"
+	EventTaskRescheduled    = "TASK_RESCHEDULED"
+	EventTaskCrashLoop      = "TASK_CRASH_LOOP"
 
 	// Simulation Events
 	EventSimulationTriggered = "SIMULATION_TRIGGERED"

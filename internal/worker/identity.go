@@ -104,4 +104,3 @@ func (m *IdentityManager) GetBootstrapToken() string {
 	}
 	return strings.TrimSpace(string(data))
 }
-

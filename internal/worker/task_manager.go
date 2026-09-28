@@ -409,7 +409,7 @@ func (tm *TaskManager) superviseTask(ctx context.Context, task *ManagedTask) {
 			// Context canceled: stop process
 			_ = tm.transitionTask(context.Background(), task, models.TaskStateStopping)
 			_ = tm.runtime.Stop(context.Background(), task.Assignment.TaskID, 3*time.Second)
-			
+
 			inspectStatus, _ := tm.runtime.Inspect(context.Background(), task.Assignment.TaskID)
 			task.mu.Lock()
 			task.StopTime = time.Now().UTC()

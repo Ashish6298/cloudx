@@ -373,4 +373,3 @@ func (h *ClusterHarness) Teardown() {
 		_ = h.Store.Close()
 	}
 }
-

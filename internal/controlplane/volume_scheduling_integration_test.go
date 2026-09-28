@@ -20,10 +20,10 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 type integTestEnv struct {
-	cp       *controlplane.ControlPlane
-	store    *sqlite.Store
-	baseDir  string
-	cleanup  func()
+	cp      *controlplane.ControlPlane
+	store   *sqlite.Store
+	baseDir string
+	cleanup func()
 	// Pre-registered workers
 	worker1ID id.ID
 	worker2ID id.ID

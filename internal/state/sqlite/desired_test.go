@@ -171,10 +171,10 @@ func TestInvalidDesiredState(t *testing.T) {
 	ctx := context.Background()
 
 	invalidStates := []*models.ServiceDesiredState{
-		{Name: "", Version: "v1", Command: "app"},             // empty name
-		{Name: "app", Version: "", Command: "app"},             // empty version
-		{Name: "app", Version: "v1", Command: ""},             // empty command
-		{Name: "app", Version: "v1", Command: "app", Replicas: -1}, // negative replicas
+		{Name: "", Version: "v1", Command: "app"},                           // empty name
+		{Name: "app", Version: "", Command: "app"},                          // empty version
+		{Name: "app", Version: "v1", Command: ""},                           // empty command
+		{Name: "app", Version: "v1", Command: "app", Replicas: -1},          // negative replicas
 		{Name: "app", Version: "v1", Command: "app", Runtime: "kubernetes"}, // invalid runtime
 		{Name: "app", Version: "v1", Command: "app", RestartPolicy: models.RestartPolicy{Type: "invalid-policy"}},
 		{

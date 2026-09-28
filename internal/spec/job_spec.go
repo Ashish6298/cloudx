@@ -69,10 +69,10 @@ func ParseJobConfig(data []byte) (*JobConfigFile, error) {
 
 // ParsedJobSettings contains strongly-typed and validated job configuration parameters.
 type ParsedJobSettings struct {
-	Resources     *ParsedResources
-	Timeout       time.Duration
-	RetryRetries  int
-	RetryBackoff  time.Duration
+	Resources    *ParsedResources
+	Timeout      time.Duration
+	RetryRetries int
+	RetryBackoff time.Duration
 }
 
 // Validate performs in-depth validation and normalization on a JobConfig.

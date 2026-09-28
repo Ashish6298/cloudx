@@ -128,9 +128,9 @@ func (v *TokenValidator) RevokeToken(tokenStr string) bool {
 
 // ValidateResult encapsulates the outcome of token and cluster authentication.
 type ValidateResult struct {
-	Valid   bool
-	Reason  string
-	Token   *BootstrapToken
+	Valid  bool
+	Reason string
+	Token  *BootstrapToken
 }
 
 // Validate verifies the token string, expiration, and cluster identity.

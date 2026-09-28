@@ -305,4 +305,3 @@ The desired state is updated directly to the previous immutable deployment recor
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output rollback result as JSON")
 	return cmd
 }
-

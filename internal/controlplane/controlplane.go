@@ -47,24 +47,24 @@ func (c *StateManager) Store() state.Store { return c.store }
 // Registry manages service discovery endpoints.
 type Registry struct{}
 
-func NewRegistry() *Registry                    { return &Registry{} }
-func (c *Registry) Name() string                { return "Registry" }
+func NewRegistry() *Registry                        { return &Registry{} }
+func (c *Registry) Name() string                    { return "Registry" }
 func (c *Registry) Start(ctx context.Context) error { return nil }
 func (c *Registry) Stop(ctx context.Context) error  { return nil }
 
 // Scheduler manages task placement and scoring.
 type Scheduler struct{}
 
-func NewScheduler() *Scheduler                   { return &Scheduler{} }
-func (c *Scheduler) Name() string                { return "Scheduler" }
+func NewScheduler() *Scheduler                       { return &Scheduler{} }
+func (c *Scheduler) Name() string                    { return "Scheduler" }
 func (c *Scheduler) Start(ctx context.Context) error { return nil }
 func (c *Scheduler) Stop(ctx context.Context) error  { return nil }
 
 // DeploymentManager coordinates rolling updates and rollbacks.
 type DeploymentManager struct{}
 
-func NewDeploymentManager() *DeploymentManager       { return &DeploymentManager{} }
-func (c *DeploymentManager) Name() string            { return "DeploymentManager" }
+func NewDeploymentManager() *DeploymentManager               { return &DeploymentManager{} }
+func (c *DeploymentManager) Name() string                    { return "DeploymentManager" }
 func (c *DeploymentManager) Start(ctx context.Context) error { return nil }
 func (c *DeploymentManager) Stop(ctx context.Context) error  { return nil }
 
@@ -102,8 +102,8 @@ func (c *HealthManager) Stop(ctx context.Context) error {
 // EventManager processes and appends cluster events.
 type EventManager struct{}
 
-func NewEventManager() *EventManager                { return &EventManager{} }
-func (c *EventManager) Name() string                { return "EventManager" }
+func NewEventManager() *EventManager                    { return &EventManager{} }
+func (c *EventManager) Name() string                    { return "EventManager" }
 func (c *EventManager) Start(ctx context.Context) error { return nil }
 func (c *EventManager) Stop(ctx context.Context) error  { return nil }
 

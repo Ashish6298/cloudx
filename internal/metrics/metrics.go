@@ -93,13 +93,13 @@ func (g *Gauge) Labels() map[string]string { return g.labels }
 
 // Histogram records durations and computes quantiles (e.g. scheduling latency).
 type Histogram struct {
-	mu       sync.Mutex
-	name     string
-	labels   map[string]string
-	count    int64
-	sum      float64   // sum of all observations in seconds
-	samples  []float64 // raw observations kept for quantile computation
-	maxSamples int     // cap to avoid unbounded growth
+	mu         sync.Mutex
+	name       string
+	labels     map[string]string
+	count      int64
+	sum        float64   // sum of all observations in seconds
+	samples    []float64 // raw observations kept for quantile computation
+	maxSamples int       // cap to avoid unbounded growth
 }
 
 // Observe records a duration observation.
@@ -272,11 +272,11 @@ type MetricValue struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	Value  float64           `json:"value"`
 	// Histogram extras (only set for histograms)
-	Count  int64    `json:"count,omitempty"`
-	Sum    float64  `json:"sum_seconds,omitempty"`
-	P50    *float64 `json:"p50_seconds,omitempty"`
-	P90    *float64 `json:"p90_seconds,omitempty"`
-	P99    *float64 `json:"p99_seconds,omitempty"`
+	Count int64    `json:"count,omitempty"`
+	Sum   float64  `json:"sum_seconds,omitempty"`
+	P50   *float64 `json:"p50_seconds,omitempty"`
+	P90   *float64 `json:"p90_seconds,omitempty"`
+	P99   *float64 `json:"p99_seconds,omitempty"`
 }
 
 // Snapshot returns a point-in-time copy of all metrics values.

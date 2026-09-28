@@ -15,12 +15,12 @@ import (
 
 // VolumeCreateResult holds the outcome of a successful volume creation.
 type VolumeCreateResult struct {
-	VolumeID   id.ID                `json:"volume_id"`
-	VolumeName string               `json:"volume_name"`
-	Location   string               `json:"location"`
-	Driver     models.VolumeDriver  `json:"driver"`
-	State      models.VolumeState   `json:"state"`
-	CreatedAt  time.Time            `json:"created_at"`
+	VolumeID   id.ID               `json:"volume_id"`
+	VolumeName string              `json:"volume_name"`
+	Location   string              `json:"location"`
+	Driver     models.VolumeDriver `json:"driver"`
+	State      models.VolumeState  `json:"state"`
+	CreatedAt  time.Time           `json:"created_at"`
 }
 
 // CreateVolume provisions a new persistent volume in the cluster.

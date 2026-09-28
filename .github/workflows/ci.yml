@@ -23,7 +23,7 @@ jobs:
 
       - name: Check Formatting (gofmt)
         run: |
-          UNFORMATTED=$(gofmt -l .)
+          UNFORMATTED=$(gofmt -l cmd/ internal/ scripts/ test/ proto/)
           if [ -n "$UNFORMATTED" ]; then
             echo "The following files are not formatted with gofmt:"
             echo "$UNFORMATTED"

@@ -64,12 +64,12 @@ func TestInvalidTransitions(t *testing.T) {
 		from models.TaskState
 		to   models.TaskState
 	}{
-		{models.TaskStatePending, models.TaskStateRunning},    // Cannot skip ASSIGNED/STARTING
-		{models.TaskStatePending, models.TaskStateHealthy},    // Cannot jump to HEALTHY directly
-		{models.TaskStateAssigned, models.TaskStateHealthy},   // Must be STARTING/RUNNING first
-		{models.TaskStateStarting, models.TaskStateHealthy},   // Must reach RUNNING before HEALTHY
-		{models.TaskStateStopping, models.TaskStateRunning},   // Cannot go backwards from STOPPING to RUNNING
-		{models.TaskStateStopping, models.TaskStateHealthy},   // Cannot go backwards from STOPPING to HEALTHY
+		{models.TaskStatePending, models.TaskStateRunning},  // Cannot skip ASSIGNED/STARTING
+		{models.TaskStatePending, models.TaskStateHealthy},  // Cannot jump to HEALTHY directly
+		{models.TaskStateAssigned, models.TaskStateHealthy}, // Must be STARTING/RUNNING first
+		{models.TaskStateStarting, models.TaskStateHealthy}, // Must reach RUNNING before HEALTHY
+		{models.TaskStateStopping, models.TaskStateRunning}, // Cannot go backwards from STOPPING to RUNNING
+		{models.TaskStateStopping, models.TaskStateHealthy}, // Cannot go backwards from STOPPING to HEALTHY
 	}
 
 	for _, tc := range invalidTransitions {

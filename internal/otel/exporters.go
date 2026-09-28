@@ -108,7 +108,7 @@ type otlpExportTraceServiceRequest struct {
 }
 
 type otlpResourceSpans struct {
-	Resource   otlpResource   `json:"resource"`
+	Resource   otlpResource     `json:"resource"`
 	ScopeSpans []otlpScopeSpans `json:"scopeSpans"`
 }
 

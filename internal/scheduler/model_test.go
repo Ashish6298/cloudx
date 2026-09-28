@@ -278,4 +278,3 @@ func findSub(s, substr string) bool {
 	}
 	return false
 }
-

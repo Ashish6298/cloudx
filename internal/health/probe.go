@@ -37,13 +37,13 @@ const (
 
 // ProbeConfig specifies the parameters and thresholds for health probing.
 type ProbeConfig struct {
-	Type             CheckType     `json:"type" yaml:"type"`                         // process, tcp, http
-	PID              int           `json:"pid,omitempty" yaml:"pid,omitempty"`       // for process check
-	Port             int           `json:"port,omitempty" yaml:"port,omitempty"`     // for tcp / http check
-	Path             string        `json:"path,omitempty" yaml:"path,omitempty"`     // for http check (e.g. /healthz)
-	Host             string        `json:"host,omitempty" yaml:"host,omitempty"`     // defaults to 127.0.0.1
-	Interval         time.Duration `json:"interval" yaml:"interval"`                 // probe period (e.g. 500ms, 1s)
-	Timeout          time.Duration `json:"timeout" yaml:"timeout"`                   // per-probe timeout
+	Type             CheckType     `json:"type" yaml:"type"`                           // process, tcp, http
+	PID              int           `json:"pid,omitempty" yaml:"pid,omitempty"`         // for process check
+	Port             int           `json:"port,omitempty" yaml:"port,omitempty"`       // for tcp / http check
+	Path             string        `json:"path,omitempty" yaml:"path,omitempty"`       // for http check (e.g. /healthz)
+	Host             string        `json:"host,omitempty" yaml:"host,omitempty"`       // defaults to 127.0.0.1
+	Interval         time.Duration `json:"interval" yaml:"interval"`                   // probe period (e.g. 500ms, 1s)
+	Timeout          time.Duration `json:"timeout" yaml:"timeout"`                     // per-probe timeout
 	FailureThreshold int           `json:"failure_threshold" yaml:"failure_threshold"` // consecutive failures to declare UNHEALTHY
 	SuccessThreshold int           `json:"success_threshold" yaml:"success_threshold"` // consecutive successes to declare HEALTHY
 }
@@ -234,12 +234,12 @@ type monitoredTask struct {
 // TaskHealthMonitor runs periodic probes for registered tasks and tracks transitions between
 // UNKNOWN, HEALTHY, and UNHEALTHY based on configurable failure/success thresholds.
 type TaskHealthMonitor struct {
-	mu         sync.RWMutex
-	prober     Prober
-	logger     logging.Logger
-	onStatus   StateChangeCallback
-	monitored  map[id.ID]*monitoredTask
-	closed     bool
+	mu        sync.RWMutex
+	prober    Prober
+	logger    logging.Logger
+	onStatus  StateChangeCallback
+	monitored map[id.ID]*monitoredTask
+	closed    bool
 }
 
 // NewTaskHealthMonitor constructs a new TaskHealthMonitor.

@@ -21,19 +21,19 @@ const (
 type TaskRequirements struct {
 	TaskID          id.ID             `json:"task_id"`
 	ServiceID       id.ID             `json:"service_id,omitempty"` // Service identifier for replica spread
-	CPU             float64           `json:"cpu"`              // requested CPU cores (e.g. 0.5, 1.0, 2.0)
-	Memory          int64             `json:"memory"`           // requested Memory in bytes (e.g. 512*1024*1024)
-	RequiredRuntime string            `json:"required_runtime"` // "native", "docker", etc.
+	CPU             float64           `json:"cpu"`                  // requested CPU cores (e.g. 0.5, 1.0, 2.0)
+	Memory          int64             `json:"memory"`               // requested Memory in bytes (e.g. 512*1024*1024)
+	RequiredRuntime string            `json:"required_runtime"`     // "native", "docker", etc.
 	NodeConstraints map[string]string `json:"node_constraints,omitempty"`
 	AffinityTags    []string          `json:"affinity_tags,omitempty"`
 	Priority        Priority          `json:"priority"`
 	// RequiredVolumes lists the names of CloudX volumes this task must access.
 	// Storage-aware scheduling: the selected worker must own ALL listed volumes.
 	// A task may list zero volumes (no storage constraint).
-	RequiredVolumes []string          `json:"required_volumes,omitempty"`
+	RequiredVolumes []string `json:"required_volumes,omitempty"`
 	// RequiredPorts lists the host ports (e.g. 8080 or "8080/tcp") that must be bound on the worker.
 	// Used for port conflict prevention during scheduling.
-	RequiredPorts   []int             `json:"required_ports,omitempty"`
+	RequiredPorts []int `json:"required_ports,omitempty"`
 }
 
 // WorkerCapacity represents the hardware and runtime profile of a candidate worker.
@@ -51,13 +51,13 @@ type WorkerCapacity struct {
 	Tags                []string          `json:"tags,omitempty"`
 	TaskCount           int               `json:"task_count"`
 	// ServiceTaskCounts maps ServiceID to the count of active replicas running on this worker.
-	ServiceTaskCounts   map[id.ID]int     `json:"service_task_counts,omitempty"`
+	ServiceTaskCounts map[id.ID]int `json:"service_task_counts,omitempty"`
 	// VolumeNames lists the names of CloudX volumes that physically reside on this worker.
 	// Used for storage-aware scheduling: tasks requiring a local volume are only placed
 	// on the worker that owns the volume.
-	VolumeNames         []string          `json:"volume_names,omitempty"`
+	VolumeNames []string `json:"volume_names,omitempty"`
 	// AllocatedPorts tracks host ports currently allocated/bound by active running tasks on this worker.
-	AllocatedPorts      []int             `json:"allocated_ports,omitempty"`
+	AllocatedPorts []int `json:"allocated_ports,omitempty"`
 }
 
 // CPUAvailable returns the unallocated CPU cores on this worker.
@@ -93,7 +93,6 @@ func (w *WorkerCapacity) MemoryPressure() float64 {
 	}
 	return float64(w.MemoryAllocated) / float64(w.MemoryTotal)
 }
-
 
 // FitResult details whether a worker can run a task and the reason if rejected.
 type FitResult struct {

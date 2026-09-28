@@ -50,14 +50,14 @@ func TestRedactString_Secrets(t *testing.T) {
 
 func TestRedactEnvironmentVariables(t *testing.T) {
 	env := map[string]string{
-		"DATABASE_URL":    "postgres://user:secret@localhost:5432/db",
-		"DB_PASSWORD":     "MySecret123",
-		"API_KEY":         "sk_live_123456",
-		"SERVICE_PORT":    "8080",
-		"LOG_LEVEL":       "info",
-		"APP_NAME":        "payment-service",
-		"AUTH_TOKEN":      "token-xyz-123",
-		"TLS_KEY_FILE":    "/etc/tls/key.pem",
+		"DATABASE_URL": "postgres://user:secret@localhost:5432/db",
+		"DB_PASSWORD":  "MySecret123",
+		"API_KEY":      "sk_live_123456",
+		"SERVICE_PORT": "8080",
+		"LOG_LEVEL":    "info",
+		"APP_NAME":     "payment-service",
+		"AUTH_TOKEN":   "token-xyz-123",
+		"TLS_KEY_FILE": "/etc/tls/key.pem",
 	}
 
 	redacted := RedactEnvironmentVariables(env)

@@ -3,15 +3,15 @@
 // Per Phase 60 — Diagnostics (Milestone 16: Observability):
 //
 // Diagnostics checks 9 critical system vectors in one command:
-//   1. Control plane health (connectivity, address reachability, RPC readiness)
-//   2. Worker connectivity (reachability, daemon status, registered worker nodes)
-//   3. Database integrity (SQLite schema migrations, PRAGMA integrity_check, foreign keys)
-//   4. Heartbeat status (missed heartbeats, SUSPECTED/UNHEALTHY/LOST worker states)
-//   5. Scheduler status (capacity evaluation, schedulable node count, score engine)
-//   6. Orphaned tasks (tasks on dead/unresponsive/unhealthy workers or in invalid states)
-//   7. Failed deployments (stalled rollouts, unhealthy revisions, failure rates)
-//   8. Resource pressure (host CPU/memory load, worker capacity exhaustion)
-//   9. Configuration problems (semantic validation, path accessibility, port binding)
+//  1. Control plane health (connectivity, address reachability, RPC readiness)
+//  2. Worker connectivity (reachability, daemon status, registered worker nodes)
+//  3. Database integrity (SQLite schema migrations, PRAGMA integrity_check, foreign keys)
+//  4. Heartbeat status (missed heartbeats, SUSPECTED/UNHEALTHY/LOST worker states)
+//  5. Scheduler status (capacity evaluation, schedulable node count, score engine)
+//  6. Orphaned tasks (tasks on dead/unresponsive/unhealthy workers or in invalid states)
+//  7. Failed deployments (stalled rollouts, unhealthy revisions, failure rates)
+//  8. Resource pressure (host CPU/memory load, worker capacity exhaustion)
+//  9. Configuration problems (semantic validation, path accessibility, port binding)
 //
 // A developer can run `cloudx diagnose` to instantly identify common CloudX problems.
 package diagnostics

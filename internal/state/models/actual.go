@@ -29,12 +29,12 @@ const (
 type ServiceActualStatus string
 
 const (
-	ServiceStatusPending   ServiceActualStatus = "PENDING"
-	ServiceStatusRunning   ServiceActualStatus = "RUNNING"
-	ServiceStatusHealthy   ServiceActualStatus = "HEALTHY"
-	ServiceStatusDegraded  ServiceActualStatus = "DEGRADED"
-	ServiceStatusFailed    ServiceActualStatus = "FAILED"
-	ServiceStatusStopped   ServiceActualStatus = "STOPPED"
+	ServiceStatusPending  ServiceActualStatus = "PENDING"
+	ServiceStatusRunning  ServiceActualStatus = "RUNNING"
+	ServiceStatusHealthy  ServiceActualStatus = "HEALTHY"
+	ServiceStatusDegraded ServiceActualStatus = "DEGRADED"
+	ServiceStatusFailed   ServiceActualStatus = "FAILED"
+	ServiceStatusStopped  ServiceActualStatus = "STOPPED"
 )
 
 // TaskResourceUsage captures dynamic compute usage for a running task.
