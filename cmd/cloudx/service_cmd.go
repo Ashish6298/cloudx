@@ -48,7 +48,7 @@ Examples:
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -194,7 +194,7 @@ func newServiceListCmd() *cobra.Command {
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -255,7 +255,7 @@ func newServiceInspectCmd() *cobra.Command {
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -371,7 +371,7 @@ func newServiceScaleCmd() *cobra.Command {
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)
@@ -439,7 +439,7 @@ Examples:
 			}
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
 			defer cancel()
 
 			store, err := sqlite.Open(ctx, dbPath)

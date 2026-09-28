@@ -57,9 +57,13 @@ jobs:
           check-latest: true
           cache: true
 
-      - name: Run Unit & Subsystem Tests
+      - name: Run Unit & Subsystem Tests (internal + proto)
         shell: bash
-        run: go test -v -timeout 5m ./cmd/... ./internal/... ./proto/...
+        run: go test -v -timeout 5m ./internal/... ./proto/...
+
+      - name: Run CLI Command Tests (sequential to avoid SQLite contention)
+        shell: bash
+        run: go test -v -p 1 -timeout 8m ./cmd/...
 
       - name: Run Integration Tests
         shell: bash

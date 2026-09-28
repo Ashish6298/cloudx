@@ -47,7 +47,7 @@ Examples:
 				return err
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 130*time.Second)
 			defer cancel()
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")

@@ -43,7 +43,7 @@ func newNodeListCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 
 			// Query local state store
-			dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			dbCtx, dbCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer dbCancel()
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
@@ -137,7 +137,7 @@ func newNodeDrainCmd() *cobra.Command {
 
 			out := cmd.OutOrStdout()
 
-			dbCtx, dbCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			dbCtx, dbCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer dbCancel()
 
 			dbPath := filepath.Join(cfg.Storage.Path, "cloudx.db")
