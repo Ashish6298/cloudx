@@ -791,4 +791,29 @@ Phase 84 verifies all 28 core subsystem capabilities under automated integration
 go test -v -run TestFunctionalAudit_CompleteSystemSuite ./test/integration/...
 ```
 
+---
 
+### 27. Architecture Audit Invariants (Phase 85)
+
+Phase 85 verifies the 15 core architectural invariants of CloudX:
+
+1. **Desired State Ownership**: Control plane exclusively owns desired state declarations.
+2. **Actual Execution Ownership**: Worker nodes and runtime daemons own physical task execution.
+3. **Deterministic Scheduling**: Score-based placement produces repeatable, deterministic assignments.
+4. **Idempotent Reconciliation**: Zero side-effects on converged cluster state.
+5. **Runtime Abstraction**: Workload orchestrators rely strictly on `runtime.Runtime` interface contracts.
+6. **State Repository Abstraction**: Pure interface-based state persistence (`state.Store`).
+7. **Database Isolation**: SQLite details are completely isolated from domain logic.
+8. **gRPC Protocol Evolution**: Tag-stable, versioned Protobuf contracts (`cloudx.v1`).
+9. **Worker Resilience**: Automatic orphan task rescheduling upon worker failure.
+10. **Process Crash Recovery**: Automated shortfall recovery upon workload crash.
+11. **Health-Aware Discovery**: Service discovery dynamically filters out failing endpoints.
+12. **Immutable Revisions**: Deployment specifications and version artifacts are immutable snapshots.
+13. **Safe Rollback**: Version rollbacks safely target known previous revisions.
+14. **Unified Scheduling**: Batch jobs reuse the central scoring and placement engine.
+15. **Resource Bounding**: CPU and memory limits are strictly validated against node capacities.
+
+```bash
+# Execute architecture audit verification suite
+go test -v -run TestArchitectureAudit_CompleteVectors ./test/integration/...
+```
