@@ -30,7 +30,7 @@ func TestProtoSerializationEntities(t *testing.T) {
 		t.Fatalf("failed to unmarshal Node: %v", err)
 	}
 	if nodeUnmarshaled.Name != "master-node" || nodeUnmarshaled.Id != "node-001" {
-		t.Errorf("unmarshaled Node mismatch: %+v", nodeUnmarshaled)
+		t.Errorf("unmarshaled Node mismatch: %+v", &nodeUnmarshaled)
 	}
 
 	// 2. Service
@@ -53,7 +53,7 @@ func TestProtoSerializationEntities(t *testing.T) {
 		t.Fatalf("failed to unmarshal Service: %v", err)
 	}
 	if srvUnmarshaled.Replicas != 3 || srvUnmarshaled.Name != "payment-service" {
-		t.Errorf("unmarshaled Service mismatch: %+v", srvUnmarshaled)
+		t.Errorf("unmarshaled Service mismatch: %+v", &srvUnmarshaled)
 	}
 
 	// 3. Task
@@ -75,7 +75,7 @@ func TestProtoSerializationEntities(t *testing.T) {
 		t.Fatalf("failed to unmarshal Task: %v", err)
 	}
 	if taskUnmarshaled.Pid != 4501 || taskUnmarshaled.State != "RUNNING" {
-		t.Errorf("unmarshaled Task mismatch: %+v", taskUnmarshaled)
+		t.Errorf("unmarshaled Task mismatch: %+v", &taskUnmarshaled)
 	}
 }
 
@@ -97,7 +97,7 @@ func TestProtoRPCCallMessages(t *testing.T) {
 		t.Fatalf("failed to unmarshal RegisterWorkerRequest: %v", err)
 	}
 	if unmarshaledReq.WorkerId != "wrk-001" || unmarshaledReq.Metadata["os"] != "windows" {
-		t.Errorf("unmarshaled RegisterWorkerRequest mismatch: %+v", unmarshaledReq)
+		t.Errorf("unmarshaled RegisterWorkerRequest mismatch: %+v", &unmarshaledReq)
 	}
 
 	// Heartbeat Request

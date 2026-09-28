@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-type Target struct {
+type PackageTarget struct {
 	OS      string
 	Arch    string
 	Ext     string
@@ -36,7 +36,7 @@ func main() {
 
 	buildDate := time.Now().UTC().Format(time.RFC3339)
 
-	targets := []Target{
+	targets := []PackageTarget{
 		{"windows", "amd64", ".exe", "zip"},
 		{"windows", "arm64", ".exe", "zip"},
 		{"linux", "amd64", "", "tar.gz"},
