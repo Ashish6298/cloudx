@@ -579,6 +579,21 @@ For deep technical insights into CloudX internals, consult the [Comprehensive Ar
 - **Security & Boundaries**: mTLS PKI, permission isolation, path-traversal guards, and secret redaction.
 - **Observability**: Prometheus metrics collectors, OpenTelemetry tracing spans, and diagnostic probes.
 
+---
+
+### 15. Developer & Operations Guide (Phase 73)
+
+For day-to-day operations, manifest templates, and CLI guides, consult the [Developer & Operations Guide](docs/DEVELOPER_GUIDE.md), featuring:
+- **Installation & Pre-requisites**: Pure-Go zero-CGO compilation.
+- **Configuration Precedence**: Precedence hierarchy and YAML reference.
+- **Cluster Initialization & Worker Joining**: Multi-worker local cluster setup.
+- **Deployments & Scaling**: Declarative YAML service templates and dynamic replica scaling.
+- **Batch Jobs**: Finite workload manifests, retries, backoff, and timeouts.
+- **Volumes & Networking**: Storage provisioning and dynamic port allocations.
+- **Logs, Events & Rollbacks**: Live streaming logs, audit trails, and instant rollbacks.
+- **Diagnostics**: Automated 9-vector health checks via `cloudx diagnose`.
+
+
 
 
 
