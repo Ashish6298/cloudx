@@ -58,14 +58,12 @@ jobs:
           cache: true
 
       - name: Run Unit & Subsystem Tests
-        run: go test -v -timeout 10m ./...
+        shell: bash
+        run: go test -v -timeout 5m $(go list ./... | grep -v '/test/integration')
 
-      - name: Run Integration Audit Suites
-        run: |
-          go test -v -timeout 10m -run TestFunctionalAudit_CompleteSystemSuite ./test/integration/...
-          go test -v -timeout 10m -run TestArchitectureAudit_CompleteVectors ./test/integration/...
-          go test -v -timeout 10m -run TestReliabilityAudit_Invariants ./test/integration/...
-          go test -v -timeout 10m -run TestPhase87_KillerDemo ./test/integration/...
+      - name: Run Integration Tests
+        shell: bash
+        run: go test -v -p 1 -timeout 10m ./test/integration/...
 
   benchmarks:
     name: Scale & Performance Benchmarks
