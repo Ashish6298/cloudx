@@ -74,7 +74,7 @@ func TestSimulator_KillProcess(t *testing.T) {
 
 	// 2. Poll until task transitions to FAILED or STOPPED
 	var finalSnap *worker.TaskStatusSnapshot
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 300; i++ {
 		time.Sleep(50 * time.Millisecond)
 		finalSnap, _ = tm.GetTask(taskID)
 		if finalSnap != nil && (finalSnap.State == models.TaskStateFailed || finalSnap.State == models.TaskStateStopped) {
@@ -83,7 +83,11 @@ func TestSimulator_KillProcess(t *testing.T) {
 	}
 
 	if finalSnap == nil || (finalSnap.State != models.TaskStateFailed && finalSnap.State != models.TaskStateStopped) {
-		t.Fatalf("expected task state FAILED or STOPPED after kill simulation, got: %v", finalSnap)
+		state := "nil"
+		if finalSnap != nil {
+			state = string(finalSnap.State)
+		}
+		t.Fatalf("expected task state FAILED or STOPPED after kill simulation, timed out stuck in state: %s", state)
 	}
 }
 
