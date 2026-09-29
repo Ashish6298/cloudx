@@ -77,7 +77,8 @@
       <a href="#security--defensive-hardening"><b>Security &amp; Redaction</b></a><br/>
       <a href="#fault-tolerance--self-healing">Self-Healing</a><br/>
       <a href="#testing--verification">Reliability Audits</a><br/>
-      <a href="#cross-platform-builds--targets">Cross-Platform</a>
+      <a href="#cross-platform-builds--targets">Cross-Platform</a><br/>
+      <a href="#cicd-workflows--release-automation">CI/CD Pipelines</a>
     </td>
   </tr>
 </table>
@@ -636,6 +637,59 @@ go test -v -run TestReliabilityAudit_Invariants ./test/integration/...
 
 # 6. Run Master 3-Node End-to-End Killer Demo
 go test -v -run TestPhase87_KillerDemo ./test/integration/...
+```
+
+<br/>
+
+---
+
+<a id="cicd-workflows--release-automation"></a>
+## 🔄 CI/CD Workflows & Release Automation
+
+CloudX includes complete, production-grade GitHub Actions CI/CD pipelines ensuring strict code quality, multi-platform test coverage, scale benchmark validation, cross-compilation, and automated release packaging:
+
+### 1. Continuous Integration (`.github/workflows/ci.yml`)
+
+<table>
+  <tr>
+    <th width="30%" align="left">Pipeline Job</th>
+    <th width="70%" align="left">Validation Details</th>
+  </tr>
+  <tr valign="top">
+    <td><b>🧹 Lint &amp; Static Analysis</b></td>
+    <td>Enforces strict <code>gofmt</code> formatting compliance, <code>go vet</code> static analysis, and <code>go mod tidy</code> module dependency validation.</td>
+  </tr>
+  <tr valign="top">
+    <td><b>💻 Multi-OS Test Matrix</b></td>
+    <td>Runs unit, integration, and reliability invariant suites across <b>Linux (<code>ubuntu-latest</code>)</b>, <b>macOS (<code>macos-latest</code>)</b>, and <b>Windows (<code>windows-latest</code>)</b>.</td>
+  </tr>
+  <tr valign="top">
+    <td><b>⚡ Scale &amp; Capacity Benchmarks</b></td>
+    <td>Automates scheduler placement throughput and reconciliation sweep scale tracking.</td>
+  </tr>
+  <tr valign="top">
+    <td><b>📦 Cross-Platform Build Matrix</b></td>
+    <td>Validates cross-compilation across all 6 target binaries (<code>windows/amd64</code>, <code>windows/arm64</code>, <code>linux/amd64</code>, <code>linux/arm64</code>, <code>darwin/amd64</code>, <code>darwin/arm64</code>).</td>
+  </tr>
+</table>
+
+<br/>
+
+### 2. Continuous Delivery & Release Packaging (`.github/workflows/cd.yml`)
+
+- **Automated Artifact Generation**: Triggered on semantic version tags (`v*.*.*`) or manual workflow dispatch.
+- **Archive Bundling**: Packages `.tar.gz` and `.zip` distribution bundles with embedded version metadata, `README.md`, `LICENSE`, and `INSTALL.md`.
+- **Integrity Manifests**: Generates cryptographic `SHA256SUMS` checksum manifests for secure distribution.
+- **GitHub Releases**: Automatically publishes releases with changelogs and multi-platform binary assets.
+
+```bash
+# Local workflow commands:
+make lint              # Check formatting and run static analysis
+make test              # Execute unit and subsystem tests
+make test-integration  # Execute integration, race and killer demo suites
+make bench             # Run scale and performance benchmarks
+make cross-build       # Build all 6 cross-platform targets
+make release           # Build, package, and generate release checksums
 ```
 
 <br/>
