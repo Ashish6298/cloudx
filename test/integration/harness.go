@@ -103,9 +103,10 @@ func NewClusterHarness(t *testing.T, opts HarnessOptions) (*ClusterHarness, erro
 
 	// 3. Initialize and boot gRPC API Server for the Control Plane
 	apiServer, err := api.NewServer(api.ServerOptions{
-		Address: "127.0.0.1:0", // dynamic loopback port
-		Store:   store,
-		Logger:  logger,
+		Address:           "127.0.0.1:0", // dynamic loopback port
+		Store:             store,
+		Logger:            logger,
+		HeartbeatInterval: cpConfig.Health.HeartbeatInterval,
 	})
 	if err != nil {
 		cancel()

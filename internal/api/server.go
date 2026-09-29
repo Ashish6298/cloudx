@@ -33,18 +33,20 @@ type Server struct {
 	address        string
 	clusterID      string
 	tokenValidator *auth.TokenValidator
-	tlsConfig      config.TLSConfig
+	tlsConfig         config.TLSConfig
+	heartbeatInterval time.Duration
 }
 
 // ServerOptions configures the gRPC server.
 type ServerOptions struct {
-	Address        string
-	ClusterID      string
-	Store          state.Store
-	Logger         logging.Logger
-	BootstrapToken string
-	TokenValidator *auth.TokenValidator
-	TLS            config.TLSConfig
+	Address           string
+	ClusterID         string
+	Store             state.Store
+	Logger            logging.Logger
+	BootstrapToken    string
+	TokenValidator    *auth.TokenValidator
+	TLS               config.TLSConfig
+	HeartbeatInterval time.Duration
 }
 
 // NewServer creates a new gRPC Server instance.
@@ -69,13 +71,19 @@ func NewServer(opts ServerOptions) (*Server, error) {
 		}
 	}
 
+	hbInterval := opts.HeartbeatInterval
+	if hbInterval <= 0 {
+		hbInterval = 5 * time.Second
+	}
+
 	s := &Server{
-		store:          opts.Store,
-		logger:         opts.Logger,
-		address:        opts.Address,
-		clusterID:      clusterID,
-		tokenValidator: tv,
-		tlsConfig:      opts.TLS,
+		store:             opts.Store,
+		logger:            opts.Logger,
+		address:           opts.Address,
+		clusterID:         clusterID,
+		tokenValidator:    tv,
+		tlsConfig:         opts.TLS,
+		heartbeatInterval: hbInterval,
 	}
 
 	// Logging & Request ID Interceptor
@@ -243,7 +251,7 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 				Message:             "Worker re-registered successfully",
 				ClusterId:           s.clusterID,
 				RegisteredAt:        now.Unix(),
-				HeartbeatIntervalMs: 5000,
+				HeartbeatIntervalMs: s.heartbeatInterval.Milliseconds(),
 				WorkerConfig: map[string]string{
 					"cluster_domain": "cloudx.local",
 					"log_level":      "info",
@@ -284,7 +292,7 @@ func (s *Server) RegisterWorker(ctx context.Context, req *v1.RegisterWorkerReque
 		Message:             "Worker registered successfully",
 		ClusterId:           s.clusterID,
 		RegisteredAt:        now.Unix(),
-		HeartbeatIntervalMs: 5000,
+		HeartbeatIntervalMs: s.heartbeatInterval.Milliseconds(),
 		WorkerConfig: map[string]string{
 			"cluster_domain": "cloudx.local",
 			"log_level":      "info",
@@ -313,7 +321,7 @@ func (s *Server) Heartbeat(ctx context.Context, req *v1.HeartbeatRequest) (*v1.H
 
 	return &v1.HeartbeatResponse{
 		Acknowledged:   true,
-		NextIntervalMs: 5000,
+		NextIntervalMs: s.heartbeatInterval.Milliseconds(),
 	}, nil
 }
 
