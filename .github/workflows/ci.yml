@@ -59,7 +59,7 @@ jobs:
 
       - name: Run Unit & Subsystem Tests (internal + proto)
         shell: bash
-        run: go test -v -timeout 5m ./internal/... ./proto/...
+        run: go test -v -p 1 -timeout 8m ./internal/... ./proto/...
 
       - name: Run CLI Command Tests (sequential to avoid SQLite contention)
         shell: bash
