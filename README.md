@@ -47,7 +47,7 @@
     <td align="center"><a href="#state-engine--sqlite-wal"><img src="https://img.shields.io/badge/State-SQLite_WAL_(Pure_Go)-003B57?style=plastic&logo=sqlite&logoColor=white" alt="SQLite WAL"/></a></td>
     <td align="center"><a href="#scheduler--placement-engine"><img src="https://img.shields.io/badge/Scheduler-Deterministic_Multi--Factor-2962FF?style=plastic&logo=speedtest&logoColor=white" alt="Deterministic Scheduler"/></a></td>
     <td align="center"><a href="#security--defensive-hardening"><img src="https://img.shields.io/badge/Security-mTLS_|_Secret_Redaction_|_SafePath-17A2B8?style=plastic&logo=shield&logoColor=white" alt="Security Hardening"/></a></td>
-    <td align="center"><a href="#testing--verification"><img src="https://img.shields.io/badge/Audits-88_Phases_Complete_(100%25)-00C853?style=plastic&logo=githubactions&logoColor=white" alt="88 Phases Verified"/></a></td>
+    <td align="center"><a href="https://github.com/Ashish6298/cloudx/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/CI-Passing_(88_Phases)-00C853?style=plastic&logo=githubactions&logoColor=white" alt="GitHub Actions CI Passing"/></a></td>
   </tr>
 </table>
 
