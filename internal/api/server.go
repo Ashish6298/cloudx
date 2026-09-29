@@ -25,14 +25,14 @@ import (
 // Server is the gRPC API server for CloudX Control Plane.
 type Server struct {
 	v1.UnimplementedControlPlaneServiceServer
-	mu             sync.RWMutex
-	store          state.Store
-	logger         logging.Logger
-	grpcServer     *grpc.Server
-	listener       net.Listener
-	address        string
-	clusterID      string
-	tokenValidator *auth.TokenValidator
+	mu                sync.RWMutex
+	store             state.Store
+	logger            logging.Logger
+	grpcServer        *grpc.Server
+	listener          net.Listener
+	address           string
+	clusterID         string
+	tokenValidator    *auth.TokenValidator
 	tlsConfig         config.TLSConfig
 	heartbeatInterval time.Duration
 }
