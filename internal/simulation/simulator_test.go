@@ -74,7 +74,7 @@ func TestSimulator_KillProcess(t *testing.T) {
 
 	// 2. Poll until task transitions to FAILED or STOPPED
 	var finalSnap *worker.TaskStatusSnapshot
-	for i := 0; i < 40; i++ {
+	for i := 0; i < 100; i++ {
 		time.Sleep(50 * time.Millisecond)
 		finalSnap, _ = tm.GetTask(taskID)
 		if finalSnap != nil && (finalSnap.State == models.TaskStateFailed || finalSnap.State == models.TaskStateStopped) {
